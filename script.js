@@ -20,6 +20,10 @@ const starterField = document.getElementById('starterField');
 const onlineLobby = document.getElementById('onlineLobby');
 const createRoomButton = document.getElementById('createRoomButton');
 const joinRoomButton = document.getElementById('joinRoomButton');
+const findRoomsButton = document.getElementById('findRoomsButton');
+const roomListContainer = document.getElementById('roomListContainer');
+const roomListMessage = document.getElementById('roomListMessage');
+const roomList = document.getElementById('roomList');
 const roomCodeInput = document.getElementById('roomCode');
 const roomShare = document.getElementById('roomShare');
 const roomLinkInput = document.getElementById('roomLink');
@@ -53,6 +57,13 @@ let aiMoveTimeout;
 let boardResizeObserver;
 let supabaseClient;
 let onlineChannel;
+let onlineLobbyChannel;
+let onlineLobbyConnected = false;
+let onlineLobbyConnectionPromise;
+let currentLobbyStatus = 'idle';
+let currentLobbyRoomCode = '';
+let currentLobbyHostId = '';
+let currentLobbyCreatedAt = 0;
 let onlineRoomCode = '';
 let onlineHostId = '';
 let onlinePlayerId = getOnlinePlayerId();
@@ -352,6 +363,145 @@ async function getSupabaseClient() {
   return supabaseClient;
 }
 
+async function ensureOnlineLobby(client) {
+  if (onlineLobbyConnected && onlineLobbyChannel) return onlineLobbyChannel;
+  if (onlineLobbyConnectionPromise) return onlineLobbyConnectionPromise;
+
+  onlineLobbyConnectionPromise = new Promise((resolve, reject) => {
+    const channel = client.channel('tic-tac-toe:lobby:v1', {
+      config: { presence: { key: onlinePlayerId } }
+    });
+    onlineLobbyChannel = channel;
+    channel
+      .on('presence', { event: 'sync' }, renderAvailableRooms)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          onlineLobbyConnected = true;
+          try {
+            await channel.track({
+              playerId: onlinePlayerId,
+              roomCode: currentLobbyRoomCode,
+              hostId: currentLobbyHostId,
+              status: currentLobbyStatus,
+              createdAt: currentLobbyCreatedAt || Date.now()
+            });
+            renderAvailableRooms();
+            resolve(channel);
+          } catch (error) {
+            reject(error);
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          onlineLobbyConnected = false;
+          reject(new Error('Não foi possível carregar as salas. Confira o Realtime do Supabase.'));
+        }
+      });
+  });
+
+  try {
+    return await onlineLobbyConnectionPromise;
+  } finally {
+    onlineLobbyConnectionPromise = null;
+  }
+}
+
+async function updateLobbyPresence(roomCode, status, hostId = '', createdAt = 0) {
+  const previousState = [currentLobbyRoomCode, currentLobbyStatus, currentLobbyHostId].join('|');
+  currentLobbyRoomCode = roomCode || '';
+  currentLobbyStatus = status || 'idle';
+  currentLobbyHostId = hostId || '';
+  if (createdAt) currentLobbyCreatedAt = createdAt;
+  if (currentLobbyStatus === 'waiting' && !currentLobbyCreatedAt) currentLobbyCreatedAt = Date.now();
+  if (!currentLobbyRoomCode && currentLobbyStatus === 'idle') currentLobbyCreatedAt = 0;
+  const currentState = [currentLobbyRoomCode, currentLobbyStatus, currentLobbyHostId].join('|');
+  if (previousState === currentState || !onlineLobbyChannel || !onlineLobbyConnected) return;
+
+  try {
+    await onlineLobbyChannel.track({
+      playerId: onlinePlayerId,
+      roomCode: currentLobbyRoomCode,
+      hostId: currentLobbyHostId,
+      status: currentLobbyStatus,
+      createdAt: currentLobbyCreatedAt || Date.now()
+    });
+  } catch (error) {
+    console.warn('Não foi possível atualizar a lista de salas:', error);
+  }
+}
+
+function renderAvailableRooms() {
+  if (roomListContainer.hidden) return;
+
+  roomList.replaceChildren();
+  if (!onlineLobbyConnected || !onlineLobbyChannel) {
+    roomListMessage.textContent = 'Conectando à lista de salas…';
+    return;
+  }
+
+  const presence = onlineLobbyChannel.presenceState();
+  const roomsByCode = new Map();
+  Object.entries(presence).forEach(([id, values]) => {
+    const metadata = Array.isArray(values) ? values[0] : null;
+    if (!metadata || metadata.status !== 'waiting' || !metadata.roomCode || id === onlinePlayerId) return;
+    if (!roomsByCode.has(metadata.roomCode)) {
+      roomsByCode.set(metadata.roomCode, {
+        code: metadata.roomCode,
+        hostId: metadata.hostId || id,
+        createdAt: Number(metadata.createdAt) || 0
+      });
+    }
+  });
+
+  const rooms = [...roomsByCode.values()].sort((left, right) => left.createdAt - right.createdAt);
+  if (!rooms.length) {
+    roomListMessage.textContent = 'Nenhuma sala aberta agora. Você pode criar uma e aguardar alguém.';
+    return;
+  }
+
+  roomListMessage.textContent = 'Salas aguardando um jogador:';
+  rooms.forEach((room) => {
+    const item = document.createElement('li');
+    item.className = 'room-list-item';
+
+    const details = document.createElement('div');
+    details.className = 'room-list-details';
+    const code = document.createElement('span');
+    code.className = 'room-list-code';
+    code.textContent = 'Sala ' + room.code;
+    const age = document.createElement('span');
+    age.className = 'room-list-age';
+    age.textContent = 'Aguardando jogador';
+    details.append(code, age);
+
+    const joinButton = document.createElement('button');
+    joinButton.className = 'lobby-button';
+    joinButton.type = 'button';
+    joinButton.textContent = 'Entrar';
+    joinButton.addEventListener('click', () => {
+      roomCodeInput.value = room.code;
+      void connectToOnlineRoom(room.code, room.hostId, false);
+    });
+
+    item.append(details, joinButton);
+    roomList.append(item);
+  });
+}
+
+async function findOnlineRooms() {
+  roomListContainer.hidden = false;
+  roomListMessage.textContent = 'Conectando à lista de salas…';
+  roomList.replaceChildren();
+  findRoomsButton.disabled = true;
+  try {
+    const client = await getSupabaseClient();
+    await ensureOnlineLobby(client);
+    renderAvailableRooms();
+  } catch (error) {
+    roomListMessage.textContent = error.message || 'Não foi possível procurar salas.';
+  } finally {
+    findRoomsButton.disabled = false;
+  }
+}
+
 function getOnlineMembers() {
   if (!onlineChannel) return [];
 
@@ -424,6 +574,14 @@ function updateOnlinePresence() {
   }
 
   updateOnlineStatus();
+  if (onlineSpectator) {
+    void updateLobbyPresence('', 'idle');
+  } else if (onlineSymbol === 'X') {
+    void updateLobbyPresence(onlineRoomCode, onlinePlayerCount >= 2 ? 'playing' : 'waiting', onlineHostId);
+  } else if (onlineSymbol === 'O') {
+    void updateLobbyPresence('', 'in-room', onlineHostId);
+  }
+
   if (onlinePlayerCount >= 2 && onlineSymbol === 'X') {
     void sendOnlineState();
   } else if (onlinePlayerCount >= 2 && onlineSymbol === 'O') {
@@ -522,6 +680,7 @@ function updateRoomUrl(roomCode, hostId) {
 
 async function closeOnlineRoom(clearUrl = true) {
   const oldChannel = onlineChannel;
+  await updateLobbyPresence('', 'idle');
   onlineChannel = null;
   if (oldChannel && supabaseClient) {
     await supabaseClient.removeChannel(oldChannel);
@@ -571,6 +730,7 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
 
   try {
     const client = await getSupabaseClient();
+    await ensureOnlineLobby(client);
     const channel = client.channel('tic-tac-toe:' + normalizedCode, {
       config: {
         broadcast: { ack: true, self: false },
@@ -846,6 +1006,10 @@ createRoomButton.addEventListener('click', () => {
   if (modeSelect.value !== 'online') modeSelect.value = 'online';
   enterOnlineMode();
   void connectToOnlineRoom(createRoomCode(), onlinePlayerId, true);
+});
+
+findRoomsButton.addEventListener('click', () => {
+  void findOnlineRooms();
 });
 
 joinRoomButton.addEventListener('click', () => {

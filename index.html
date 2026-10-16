@@ -71,6 +71,13 @@
           </label>
           <button class="lobby-button" id="joinRoomButton" type="button">Entrar na sala</button>
         </div>
+        <div class="room-directory">
+          <button class="lobby-button" id="findRoomsButton" type="button">Procurar salas abertas</button>
+          <div class="room-list-container" id="roomListContainer" hidden>
+            <p class="room-list-message" id="roomListMessage" role="status" aria-live="polite">Procurando salas…</p>
+            <ul class="room-list" id="roomList"></ul>
+          </div>
+        </div>
         <div class="room-share" id="roomShare" hidden>
           <label for="roomLink">Link para convidar</label>
           <div class="share-row">

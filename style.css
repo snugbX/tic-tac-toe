@@ -230,6 +230,71 @@ h1 {
   gap: 7px;
 }
 
+.room-directory {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.room-list-container {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--page-bg);
+}
+
+.room-list-message {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.86rem;
+}
+
+.room-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.room-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
+.room-list-details {
+  min-width: 0;
+}
+
+.room-list-code {
+  display: block;
+  color: var(--text-color);
+  font-size: 0.9rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+}
+
+.room-list-age {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted-color);
+  font-size: 0.78rem;
+}
+
+.room-list-item .lobby-button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
 .share-row {
   display: flex;
   gap: 10px;

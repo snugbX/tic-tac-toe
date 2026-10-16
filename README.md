@@ -18,7 +18,7 @@ O jogo usa caminhos relativos e funciona tanto em um domínio `github.io` quanto
 
 1. Em `supabase-config.js`, informe a Project URL e a chave Publishable (ou anon) do projeto Supabase. Essa chave pública é usada pelo navegador; nunca coloque uma chave Secret ou `service_role` nesse arquivo.
 2. No Supabase, deixe **Realtime → Settings → Allow public access to channels** ativado.
-3. Publique o projeto no GitHub Pages. Escolha **Online com convite**, crie uma sala e envie o link ao outro jogador.
+3. Publique o projeto no GitHub Pages. Em **Online com convite**, crie uma sala e envie o link, ou procure salas abertas e entre em uma delas.
 
 As salas usam Broadcast e Presence, sem criar tabelas no banco. Os canais públicos permitem que qualquer pessoa com a chave pública do projeto envie e receba eventos; use o modo por convite para partidas casuais, não para torneios ou partidas com dados sensíveis.
 

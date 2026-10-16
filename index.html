@@ -111,6 +111,41 @@
           Este navegador não disponibilizou WebGL 2.0. Ative a aceleração gráfica ou abra o jogo em um navegador compatível.
         </p>
         <button class="reset-button" id="resetButton" type="button">Nova partida</button>
+        <section class="game-insights" aria-label="Placar e histórico">
+          <div class="insight-section">
+            <div class="insight-heading">
+              <h2>Placar</h2>
+              <span class="round-count" id="roundCount">0 partidas</span>
+            </div>
+            <div class="scoreboard">
+              <div class="score-card score-x">
+                <span>X venceu</span>
+                <strong id="scoreX">0</strong>
+              </div>
+              <div class="score-card score-o">
+                <span>O venceu</span>
+                <strong id="scoreO">0</strong>
+              </div>
+              <div class="score-card score-draw">
+                <span>Empates</span>
+                <strong id="scoreDraws">0</strong>
+              </div>
+            </div>
+          </div>
+          <div class="insight-section">
+            <div class="insight-heading">
+              <h2>Jogadas da rodada</h2>
+            </div>
+            <ol class="move-history" id="moveHistory"></ol>
+          </div>
+          <div class="insight-section">
+            <div class="insight-heading">
+              <h2>Partidas recentes</h2>
+              <button class="clear-stats-button" id="resetStatsButton" type="button">Zerar dados</button>
+            </div>
+            <ol class="match-history" id="matchHistory"></ol>
+          </div>
+        </section>
       </section>
 
       <footer class="page-footer">Renderizado com WebGL 2.0</footer>

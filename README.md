@@ -1,6 +1,6 @@
 # Jogo da Velha — WebGL 2.0
 
-Jogo para navegador com renderização do tabuleiro em WebGL 2.0, IA Minimax com poda alfa-beta, modo local e partidas online por convite usando Supabase Realtime.
+Jogo para navegador com renderização do tabuleiro em WebGL 2.0, IA Minimax com poda alfa-beta, modo local e partidas online usando Supabase Realtime. A interface inclui placar, jogadas da rodada e histórico das partidas recentes.
 
 ## Abrir localmente
 
@@ -26,3 +26,4 @@ As salas usam Broadcast e Presence, sem criar tabelas no banco. Os canais públi
 
 - O navegador precisa oferecer WebGL 2.0 para desenhar o tabuleiro.
 - GitHub Pages hospeda os arquivos estáticos. A sincronização entre jogadores é feita pelo Supabase Realtime.
+- No modo local, placar e histórico ficam salvos no navegador. Em uma sala online, o placar e o histórico da sala são compartilhados entre os dois jogadores; as jogadas exibidas correspondem à rodada atual.

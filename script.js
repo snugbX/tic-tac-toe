@@ -9,6 +9,13 @@ const sounds = {
 const cells = [...document.querySelectorAll('.cell')];
 const statusElement = document.getElementById('status');
 const resetButton = document.getElementById('resetButton');
+const scoreXElement = document.getElementById('scoreX');
+const scoreOElement = document.getElementById('scoreO');
+const scoreDrawsElement = document.getElementById('scoreDraws');
+const roundCountElement = document.getElementById('roundCount');
+const moveHistoryElement = document.getElementById('moveHistory');
+const matchHistoryElement = document.getElementById('matchHistory');
+const resetStatsButton = document.getElementById('resetStatsButton');
 const symbolSelect = document.getElementById('symbol');
 const starterSelect = document.getElementById('starter');
 const themeToggle = document.getElementById('themeToggle');
@@ -72,6 +79,10 @@ let onlinePlayerCount = 0;
 let onlineConnected = false;
 let onlineSpectator = false;
 let onlineGameRevision = 0;
+let localStats = loadGameStats();
+let roomStats = createEmptyStats();
+let moveHistory = [];
+let roundRecorded = false;
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
@@ -313,6 +324,145 @@ function getOnlinePlayerId() {
   return playerId;
 }
 
+function createEmptyStats() {
+  return { total: 0, scores: { X: 0, O: 0, draws: 0 }, history: [] };
+}
+
+function normalizeStats(value) {
+  const empty = createEmptyStats();
+  if (!value || typeof value !== 'object') return empty;
+
+  const scores = value.scores || {};
+  const history = Array.isArray(value.history) ? value.history : [];
+  return {
+    total: Math.max(0, Number.parseInt(value.total, 10) || history.length),
+    scores: {
+      X: Math.max(0, Number.parseInt(scores.X, 10) || 0),
+      O: Math.max(0, Number.parseInt(scores.O, 10) || 0),
+      draws: Math.max(0, Number.parseInt(scores.draws, 10) || 0)
+    },
+    history: history.slice(0, 12).filter((entry) => entry && typeof entry === 'object').map((entry) => ({
+      winner: entry.winner === 'X' || entry.winner === 'O' ? entry.winner : '',
+      mode: ['ai', 'local', 'online'].includes(entry.mode) ? entry.mode : 'local',
+      humanSymbol: entry.humanSymbol === 'O' ? 'O' : 'X',
+      playedAt: String(entry.playedAt || ''),
+      moves: Math.max(0, Number.parseInt(entry.moves, 10) || 0),
+      round: Math.max(0, Number.parseInt(entry.round, 10) || 0)
+    }))
+  };
+}
+
+function loadGameStats() {
+  try {
+    return normalizeStats(JSON.parse(localStorage.getItem('tic-tac-toe-stats-v1') || 'null'));
+  } catch (error) {
+    return createEmptyStats();
+  }
+}
+
+function saveLocalStats() {
+  try {
+    localStorage.setItem('tic-tac-toe-stats-v1', JSON.stringify(localStats));
+  } catch (error) {
+    console.warn('Não foi possível guardar o placar neste dispositivo:', error);
+  }
+}
+
+function activeStats() {
+  return modeSelect.value === 'online' ? roomStats : localStats;
+}
+
+function getModeLabel(mode) {
+  if (mode === 'ai') return 'Contra a IA';
+  if (mode === 'online') return 'Online';
+  return 'Dois jogadores';
+}
+
+function getHistoryResult(entry) {
+  if (!entry.winner) return 'Empate';
+  if (entry.mode === 'ai') return entry.winner === entry.humanSymbol ? 'Você venceu' : 'IA venceu';
+  return entry.mode === 'online' ? 'Jogador ' + entry.winner + ' venceu' : entry.winner + ' venceu';
+}
+
+function renderGameInsights() {
+  const stats = activeStats();
+  scoreXElement.textContent = String(stats.scores.X);
+  scoreOElement.textContent = String(stats.scores.O);
+  scoreDrawsElement.textContent = String(stats.scores.draws);
+  roundCountElement.textContent = stats.total + (stats.total === 1 ? ' partida' : ' partidas');
+
+  moveHistoryElement.replaceChildren();
+  moveHistory.forEach((move) => {
+    const item = document.createElement('li');
+    item.textContent = move.symbol + ' jogou na casa ' + (move.index + 1);
+    moveHistoryElement.append(item);
+  });
+
+  matchHistoryElement.replaceChildren();
+  stats.history.forEach((entry) => {
+    const item = document.createElement('li');
+    const result = document.createElement('span');
+    result.className = 'match-result';
+    result.textContent = getHistoryResult(entry);
+    const details = document.createElement('span');
+    details.className = 'match-details';
+    const playedAt = entry.playedAt ? new Date(entry.playedAt) : null;
+    const dateLabel = playedAt && !Number.isNaN(playedAt.getTime())
+      ? new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(playedAt)
+      : '';
+    details.textContent = getModeLabel(entry.mode) + ' · ' + entry.moves + ' jogadas' + (dateLabel ? ' · ' + dateLabel : '');
+    item.append(result, details);
+    matchHistoryElement.append(item);
+  });
+
+  resetStatsButton.disabled = modeSelect.value === 'online'
+    && (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator);
+}
+
+function recordGameResult() {
+  if (roundRecorded) return;
+  roundRecorded = true;
+
+  const winner = isWinner(board, 'X') ? 'X' : (isWinner(board, 'O') ? 'O' : '');
+  const stats = activeStats();
+  if (winner) stats.scores[winner] += 1;
+  else stats.scores.draws += 1;
+  stats.total += 1;
+  stats.history.unshift({
+    winner,
+    mode: modeSelect.value,
+    humanSymbol: human,
+    playedAt: new Date().toISOString(),
+    moves: moveHistory.length,
+    round: stats.total
+  });
+  stats.history = stats.history.slice(0, 12);
+
+  if (modeSelect.value === 'online') {
+    roomStats = normalizeStats(stats);
+  } else {
+    localStats = normalizeStats(stats);
+    saveLocalStats();
+  }
+  renderGameInsights();
+}
+
+async function resetGameStats() {
+  if (modeSelect.value === 'online') {
+    if (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator) return;
+    roomStats = createEmptyStats();
+    onlineGameRevision += 1;
+    saveOnlineSnapshot();
+    renderGameInsights();
+    await sendOnlineState();
+    return;
+  }
+
+  localStats = createEmptyStats();
+  saveLocalStats();
+  renderGameInsights();
+}
+
 function enterOnlineMode() {
   difficultyField.hidden = true;
   symbolField.hidden = true;
@@ -324,11 +474,14 @@ function enterOnlineMode() {
     board = Array(9).fill('');
     currentPlayer = 'X';
     gameOver = false;
+    moveHistory = [];
+    roundRecorded = false;
     statusElement.textContent = 'Crie uma sala ou entre com o código de um amigo.';
   }
 
   updateCellButtons();
   renderBoard();
+  renderGameInsights();
 }
 
 function createRoomCode() {
@@ -599,7 +752,10 @@ function getOnlineSnapshot() {
     senderId: onlinePlayerId,
     board: [...board],
     currentPlayer,
-    revision: onlineGameRevision
+    revision: onlineGameRevision,
+    moves: [...moveHistory],
+    stats: roomStats,
+    roundRecorded
   };
 }
 
@@ -624,6 +780,14 @@ function restoreOnlineSnapshot() {
     currentPlayer = saved.currentPlayer;
     onlineGameRevision = Number(saved.revision) || 0;
     gameOver = isWinner(board, 'X') || isWinner(board, 'O') || isTie(board);
+    moveHistory = Array.isArray(saved.moves)
+      ? saved.moves.filter((move) => move && (move.symbol === 'X' || move.symbol === 'O')
+        && Number.isInteger(move.index) && move.index >= 0 && move.index < 9)
+        .map((move) => ({ symbol: move.symbol, index: move.index }))
+      : [];
+    roomStats = normalizeStats(saved.stats);
+    roundRecorded = Boolean(saved.roundRecorded) || gameOver;
+    renderGameInsights();
     return true;
   } catch (error) {
     return false;
@@ -657,10 +821,18 @@ function receiveOnlineState(payload) {
   board = [...payload.board];
   currentPlayer = payload.currentPlayer;
   onlineGameRevision = Number(payload.revision) || 0;
+  moveHistory = Array.isArray(payload.moves)
+    ? payload.moves.filter((move) => move && (move.symbol === 'X' || move.symbol === 'O')
+      && Number.isInteger(move.index) && move.index >= 0 && move.index < 9)
+      .map((move) => ({ symbol: move.symbol, index: move.index }))
+    : [];
+  roomStats = normalizeStats(payload.stats);
   gameOver = isWinner(board, 'X') || isWinner(board, 'O') || isTie(board);
+  roundRecorded = Boolean(payload.roundRecorded) || gameOver;
   updateOnlineStatus();
 
   saveOnlineSnapshot();
+  renderGameInsights();
   updateCellButtons();
   renderBoard();
 }
@@ -693,6 +865,9 @@ async function closeOnlineRoom(clearUrl = true) {
   onlineConnected = false;
   onlineSpectator = false;
   onlineGameRevision = 0;
+  roomStats = createEmptyStats();
+  moveHistory = [];
+  roundRecorded = false;
   roomShare.hidden = true;
   leaveRoomButton.hidden = true;
   if (clearUrl) updateRoomUrl('', '');
@@ -722,11 +897,15 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
     board = Array(9).fill('');
     currentPlayer = 'X';
     gameOver = false;
+    roomStats = createEmptyStats();
+    moveHistory = [];
+    roundRecorded = false;
   } else {
     restoreOnlineSnapshot();
   }
   updateCellButtons();
   renderBoard();
+  renderGameInsights();
 
   try {
     const client = await getSupabaseClient();
@@ -786,6 +965,8 @@ async function resetOnlineGame() {
   board = Array(9).fill('');
   currentPlayer = 'X';
   gameOver = false;
+  moveHistory = [];
+  roundRecorded = false;
   onlineGameRevision += 1;
   statusElement.textContent = '';
   updateOnlineStatus();
@@ -811,6 +992,8 @@ function startGame() {
   board = Array(9).fill('');
   gameOver = false;
   aiThinking = false;
+  moveHistory = [];
+  roundRecorded = false;
   playerOne = symbolSelect.value;
   playerTwo = oppositeSymbol(playerOne);
   human = playerOne;
@@ -827,6 +1010,7 @@ function startGame() {
 
   updateCellButtons();
   renderBoard();
+  renderGameInsights();
 
   if (isAiMode && currentPlayer === ai && gl) {
     scheduleAiMove();
@@ -857,6 +1041,8 @@ function makeMove(index, player) {
   if (index === undefined || index === null || board[index]) return;
 
   board[index] = player;
+  moveHistory.push({ symbol: player, index });
+  renderGameInsights();
   playSound(modeSelect.value === 'ai' && player === ai ? sounds.ai : sounds.human);
   updateCellButtons();
   renderBoard();
@@ -876,6 +1062,8 @@ function makeMove(index, player) {
     statusElement.textContent = 'Empate!';
     playSound(sounds.draw);
   }
+
+  if (gameOver) recordGameResult();
 
   updateCellButtons();
 }
@@ -982,6 +1170,9 @@ function updateTheme() {
 }
 
 cells.forEach((cell) => cell.addEventListener('click', handleCellClick));
+resetStatsButton.addEventListener('click', () => {
+  void resetGameStats();
+});
 resetButton.addEventListener('click', () => {
   if (modeSelect.value === 'online') {
     void resetOnlineGame();
@@ -1048,6 +1239,7 @@ leaveRoomButton.addEventListener('click', async () => {
 });
 
 const rendererAvailable = initializeRenderer();
+renderGameInsights();
 if (!rendererAvailable) {
   webglWarning.hidden = false;
   statusElement.textContent = 'WebGL 2.0 não está disponível neste navegador.';

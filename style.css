@@ -409,6 +409,139 @@ h1 {
   background: var(--x-color);
 }
 
+.game-insights {
+  display: grid;
+  width: min(100%, 560px);
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.insight-section {
+  min-width: 0;
+  padding: 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--page-bg);
+}
+
+.insight-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.insight-heading h2 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.round-count {
+  color: var(--muted-color);
+  font-size: 0.78rem;
+}
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.score-card {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 11px 7px;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: var(--panel-bg);
+}
+
+.score-card span {
+  color: var(--muted-color);
+  font-size: 0.76rem;
+  font-weight: 650;
+  text-align: center;
+}
+
+.score-card strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.score-x strong {
+  color: var(--x-color);
+}
+
+.score-o strong {
+  color: var(--o-color);
+}
+
+.move-history,
+.match-history {
+  display: grid;
+  gap: 7px;
+  max-height: 190px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 0 0 26px;
+  color: var(--text-color);
+  font-size: 0.84rem;
+}
+
+.move-history:empty::after,
+.match-history:empty::after {
+  margin-left: -26px;
+  color: var(--muted-color);
+  content: "Nenhum registro ainda.";
+  list-style: none;
+}
+
+.move-history li,
+.match-history li {
+  padding: 2px 0;
+}
+
+.match-history li::marker {
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+.match-result {
+  display: block;
+  font-weight: 700;
+}
+
+.match-details {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted-color);
+  font-size: 0.76rem;
+}
+
+.clear-stats-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--muted-color);
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.clear-stats-button:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  color: var(--text-color);
+}
+
+.clear-stats-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .webgl-warning {
   max-width: 440px;
   margin: 18px 0 0;

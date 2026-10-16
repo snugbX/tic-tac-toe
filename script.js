@@ -18,6 +18,13 @@ const matchHistoryElement = document.getElementById('matchHistory');
 const resetStatsButton = document.getElementById('resetStatsButton');
 const symbolSelect = document.getElementById('symbol');
 const starterSelect = document.getElementById('starter');
+const setupScreen = document.getElementById('setupScreen');
+const startGameButton = document.getElementById('startGameButton');
+const localSetupActions = document.getElementById('localSetupActions');
+const playerNameField = document.getElementById('playerNameField');
+const playerNameInput = document.getElementById('playerName');
+const backToMenuButton = document.getElementById('backToMenuButton');
+const gameScreen = document.getElementById('gameScreen');
 const themeToggle = document.getElementById('themeToggle');
 const modeSelect = document.getElementById('mode');
 const difficultySelect = document.getElementById('difficulty');
@@ -37,6 +44,17 @@ const roomLinkInput = document.getElementById('roomLink');
 const copyRoomLinkButton = document.getElementById('copyRoomLinkButton');
 const connectionStatus = document.getElementById('connectionStatus');
 const leaveRoomButton = document.getElementById('leaveRoomButton');
+const onlinePlayersPanel = document.getElementById('onlinePlayersPanel');
+const playerCards = document.getElementById('playerCards');
+const roomBadge = document.getElementById('roomBadge');
+const playerJoinAlert = document.getElementById('playerJoinAlert');
+const playerJoinAlertText = document.getElementById('playerJoinAlertText');
+const chatPanel = document.getElementById('chatPanel');
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatMessagesElement = document.getElementById('chatMessages');
+const chatHint = document.getElementById('chatHint');
+const sendChatButton = document.getElementById('sendChatButton');
 const boardElement = document.getElementById('board');
 const canvas = document.getElementById('boardCanvas');
 const webglWarning = document.getElementById('webglWarning');
@@ -79,10 +97,16 @@ let onlinePlayerCount = 0;
 let onlineConnected = false;
 let onlineSpectator = false;
 let onlineGameRevision = 0;
+let playerName = loadSavedPlayerName();
+let roomStartingPreference = 'X';
 let localStats = loadGameStats();
 let roomStats = createEmptyStats();
 let moveHistory = [];
 let roundRecorded = false;
+let chatMessages = [];
+let previousPresenceMembers = new Map();
+let hasSyncedRoomPresence = false;
+let joinAlertTimeout;
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
@@ -324,6 +348,73 @@ function getOnlinePlayerId() {
   return playerId;
 }
 
+function loadSavedPlayerName() {
+  try {
+    return localStorage.getItem('tic-tac-toe-player-name') || ('Jogador ' + Math.floor(1000 + Math.random() * 9000));
+  } catch (error) {
+    return 'Jogador ' + Math.floor(1000 + Math.random() * 9000);
+  }
+}
+
+function applyPlayerName() {
+  const cleanedName = String(playerNameInput.value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+  playerName = cleanedName || playerName || ('Jogador ' + Math.floor(1000 + Math.random() * 9000));
+  playerNameInput.value = playerName;
+  try {
+    localStorage.setItem('tic-tac-toe-player-name', playerName);
+  } catch (error) {
+    console.warn('Não foi possível guardar seu nome neste navegador:', error);
+  }
+}
+
+function resolveStartingSymbol(preference = starterSelect.value) {
+  if (preference === 'random') return Math.random() < 0.5 ? 'X' : 'O';
+  return preference === 'O' ? 'O' : 'X';
+}
+
+function updateSetupControls() {
+  const isOnline = modeSelect.value === 'online';
+  const isAiMode = modeSelect.value === 'ai';
+  playerNameField.hidden = !isOnline;
+  symbolField.hidden = !isAiMode;
+  difficultyField.hidden = !isAiMode;
+  starterField.hidden = false;
+  onlineLobby.hidden = !isOnline;
+  localSetupActions.hidden = isOnline;
+}
+
+function showGameScreen() {
+  setupScreen.hidden = true;
+  gameScreen.hidden = false;
+  window.requestAnimationFrame(() => {
+    resizeCanvas();
+    renderBoard();
+  });
+}
+
+async function returnToSetup() {
+  window.clearTimeout(aiMoveTimeout);
+  aiMoveTimeout = undefined;
+  if (onlineChannel) await closeOnlineRoom();
+  chatPanel.hidden = true;
+  onlinePlayersPanel.hidden = true;
+  playerJoinAlert.hidden = true;
+  gameScreen.hidden = true;
+  setupScreen.hidden = false;
+  updateSetupControls();
+  if (modeSelect.value === 'online') {
+    connectionStatus.textContent = 'Você saiu da sala. Crie outra ou entre com um código.';
+    roomCodeInput.value = '';
+  }
+  statusElement.textContent = 'Configure a partida para começar.';
+  board = Array(9).fill('');
+  moveHistory = [];
+  roundRecorded = false;
+  gameOver = false;
+  updateCellButtons();
+  renderGameInsights();
+}
+
 function createEmptyStats() {
   return { total: 0, scores: { X: 0, O: 0, draws: 0 }, history: [] };
 }
@@ -464,19 +555,15 @@ async function resetGameStats() {
 }
 
 function enterOnlineMode() {
-  difficultyField.hidden = true;
-  symbolField.hidden = true;
-  starterField.hidden = true;
-  onlineLobby.hidden = false;
-  resetButton.textContent = 'Reiniciar partida';
+  updateSetupControls();
 
   if (!onlineChannel) {
     board = Array(9).fill('');
-    currentPlayer = 'X';
+    currentPlayer = resolveStartingSymbol(starterSelect.value);
     gameOver = false;
     moveHistory = [];
     roundRecorded = false;
-    statusElement.textContent = 'Crie uma sala ou entre com o código de um amigo.';
+    statusElement.textContent = 'Configure seu nome e crie ou encontre uma sala.';
   }
 
   updateCellButtons();
@@ -661,8 +748,231 @@ function getOnlineMembers() {
   const presence = onlineChannel.presenceState();
   return Object.entries(presence).map(([id, values]) => {
     const metadata = Array.isArray(values) ? values[0] : {};
-    return { id, joinedAt: Number(metadata && metadata.joinedAt) || 0 };
+    return {
+      id,
+      name: String(metadata && metadata.name || '').slice(0, 20),
+      joinedAt: Number(metadata && metadata.joinedAt) || 0
+    };
   }).sort((left, right) => left.joinedAt - right.joinedAt || left.id.localeCompare(right.id));
+}
+
+function createMessageId() {
+  return window.crypto && typeof window.crypto.randomUUID === 'function'
+    ? window.crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function normalizeChatMessage(message) {
+  if (!message || typeof message !== 'object' || !message.id) return null;
+  const isSystem = message.type === 'system';
+  const text = String(message.text || '').trim().slice(0, 300);
+  if (!text) return null;
+  return {
+    id: String(message.id).slice(0, 80),
+    type: isSystem ? 'system' : 'chat',
+    senderId: String(message.senderId || '').slice(0, 80),
+    senderName: String(message.senderName || 'Jogador').replace(/\s+/g, ' ').trim().slice(0, 20),
+    symbol: message.symbol === 'O' ? 'O' : (message.symbol === 'X' ? 'X' : ''),
+    text,
+    sentAt: String(message.sentAt || new Date().toISOString())
+  };
+}
+
+function mergeChatMessages(incoming = []) {
+  const messagesById = new Map();
+  [...chatMessages, ...(Array.isArray(incoming) ? incoming : [])].forEach((rawMessage) => {
+    const message = normalizeChatMessage(rawMessage);
+    if (message) messagesById.set(message.id, message);
+  });
+  chatMessages = [...messagesById.values()]
+    .sort((left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime())
+    .slice(-60);
+  renderChat();
+}
+
+function renderChat() {
+  const inOnlineRoom = modeSelect.value === 'online' && Boolean(onlineRoomCode);
+  chatPanel.hidden = !inOnlineRoom;
+  chatMessagesElement.replaceChildren();
+
+  if (!chatMessages.length) {
+    const empty = document.createElement('li');
+    empty.className = 'chat-empty';
+    empty.textContent = 'A conversa começa quando alguém enviar uma mensagem.';
+    chatMessagesElement.append(empty);
+  } else {
+    chatMessages.forEach((message) => {
+      const item = document.createElement('li');
+      if (message.type === 'system') {
+        item.className = 'chat-message system-message';
+        item.textContent = message.text;
+        chatMessagesElement.append(item);
+        return;
+      }
+
+      const isSelf = message.senderId === onlinePlayerId;
+      item.className = 'chat-message chat-message-' + (message.symbol || 'x').toLowerCase()
+        + (isSelf ? ' from-self' : '');
+      const meta = document.createElement('div');
+      meta.className = 'chat-message-meta';
+      const name = document.createElement('span');
+      name.className = 'chat-message-name';
+      name.textContent = (isSelf ? 'Você' : message.senderName) + (message.symbol ? ' · ' + message.symbol : '');
+      const time = document.createElement('time');
+      time.className = 'chat-message-time';
+      const sentAt = new Date(message.sentAt);
+      if (!Number.isNaN(sentAt.getTime())) {
+        time.dateTime = sentAt.toISOString();
+        time.textContent = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(sentAt);
+      }
+      meta.append(name, time);
+
+      const bubble = document.createElement('span');
+      bubble.className = 'chat-message-bubble';
+      bubble.textContent = message.text;
+      item.append(meta, bubble);
+      chatMessagesElement.append(item);
+    });
+  }
+
+  const canChat = onlineConnected && onlinePlayerCount >= 2 && !onlineSpectator;
+  chatInput.disabled = !canChat;
+  sendChatButton.disabled = !canChat;
+  chatHint.textContent = onlineSpectator
+    ? 'O chat está disponível apenas para os dois jogadores.'
+    : (canChat ? 'Conversa da sala em tempo real.' : 'Entre na sala com dois jogadores para conversar.');
+  chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
+}
+
+function addSystemMessage(messageText, { announce = false } = {}) {
+  const message = normalizeChatMessage({
+    id: createMessageId(),
+    type: 'system',
+    text: messageText,
+    sentAt: new Date().toISOString()
+  });
+  if (!message) return;
+  mergeChatMessages([message]);
+  saveOnlineSnapshot();
+  if (announce && onlineChannel && onlineConnected) {
+    void onlineChannel.send({
+      type: 'broadcast',
+      event: 'room-notice',
+      payload: { room: onlineRoomCode, senderId: onlinePlayerId, message }
+    });
+  }
+}
+
+function showPlayerJoinAlert(name) {
+  playerJoinAlertText.textContent = name + ' entrou na sala!';
+  playerJoinAlert.hidden = false;
+  window.clearTimeout(joinAlertTimeout);
+  joinAlertTimeout = window.setTimeout(() => { playerJoinAlert.hidden = true; }, 6500);
+}
+
+function receiveRoomNotice(payload) {
+  if (!payload || payload.room !== onlineRoomCode || payload.senderId === onlinePlayerId) return;
+  const message = normalizeChatMessage(payload.message);
+  if (!message) return;
+  mergeChatMessages([message]);
+  saveOnlineSnapshot();
+  if (payload.kind === 'player-joined') showPlayerJoinAlert(message.text.replace(/ entrou na sala!?$/, ''));
+}
+
+function announcePlayerJoined(member) {
+  const name = member.name || 'Novo jogador';
+  const message = normalizeChatMessage({
+    id: createMessageId(),
+    type: 'system',
+    text: name + ' entrou na sala!',
+    sentAt: new Date().toISOString()
+  });
+  mergeChatMessages([message]);
+  saveOnlineSnapshot();
+  showPlayerJoinAlert(name);
+  if (onlineChannel && onlineConnected) {
+    void onlineChannel.send({
+      type: 'broadcast',
+      event: 'room-notice',
+      payload: { room: onlineRoomCode, senderId: onlinePlayerId, kind: 'player-joined', message }
+    });
+  }
+}
+
+function renderOnlinePlayers(members = getOnlineMembers()) {
+  const inOnlineRoom = modeSelect.value === 'online' && Boolean(onlineRoomCode);
+  onlinePlayersPanel.hidden = !inOnlineRoom;
+  chatPanel.hidden = !inOnlineRoom;
+  roomBadge.textContent = onlineRoomCode ? 'SALA ' + onlineRoomCode : '';
+  if (!inOnlineRoom) return;
+
+  const hostId = onlineHostId || members[0]?.id || '';
+  const xPlayer = members.find((member) => member.id === hostId);
+  const oPlayer = members.find((member) => member.id !== hostId);
+  playerCards.replaceChildren();
+
+  [
+    { symbol: 'X', player: xPlayer },
+    { symbol: 'O', player: oPlayer }
+  ].forEach(({ symbol, player }) => {
+    const isSelf = Boolean((player && player.id === onlinePlayerId)
+      || (!player && !onlineSpectator && onlineSymbol === symbol));
+    const card = document.createElement('div');
+    card.className = 'player-card player-' + symbol.toLowerCase();
+    const badge = document.createElement('span');
+    badge.className = 'player-symbol';
+    badge.textContent = symbol;
+    const details = document.createElement('div');
+    details.className = 'player-card-details';
+    const name = document.createElement('span');
+    name.className = 'player-card-name';
+    name.textContent = player && player.name ? player.name : (isSelf ? playerName : (symbol === 'X' ? 'Anfitrião' : 'Aguardando jogador'));
+    const state = document.createElement('span');
+    state.className = 'player-card-status';
+    state.textContent = player
+      ? (isSelf ? 'Você · conectado' : 'Conectado')
+      : (isSelf && onlineConnected ? 'Conectando…' : 'Aguardando');
+    details.append(name, state);
+    card.append(badge, details);
+    playerCards.append(card);
+  });
+}
+
+async function sendChatMessage(event) {
+  event.preventDefault();
+  const text = chatInput.value.replace(/\s+/g, ' ').trim().slice(0, 300);
+  if (!text || !onlineConnected || onlinePlayerCount < 2 || onlineSpectator || !onlineChannel) return;
+
+  const message = normalizeChatMessage({
+    id: createMessageId(),
+    senderId: onlinePlayerId,
+    senderName: playerName,
+    symbol: onlineSymbol,
+    text,
+    sentAt: new Date().toISOString()
+  });
+  mergeChatMessages([message]);
+  chatInput.value = '';
+  saveOnlineSnapshot();
+
+  try {
+    const result = await onlineChannel.send({
+      type: 'broadcast',
+      event: 'chat-message',
+      payload: { room: onlineRoomCode, message }
+    });
+    if (result !== 'ok') chatHint.textContent = 'Mensagem não enviada. Verifique sua conexão.';
+  } catch (error) {
+    chatHint.textContent = 'Mensagem não enviada. Verifique sua conexão.';
+  }
+}
+
+function receiveChatMessage(payload) {
+  if (!payload || payload.room !== onlineRoomCode) return;
+  const message = normalizeChatMessage(payload.message);
+  if (!message || message.senderId === onlinePlayerId) return;
+  mergeChatMessages([message]);
+  saveOnlineSnapshot();
 }
 
 function updateOnlineStatus() {
@@ -672,6 +982,8 @@ function updateOnlineStatus() {
     const winner = isWinner(board, 'X') ? 'X' : (isWinner(board, 'O') ? 'O' : '');
     connectionStatus.textContent = winner ? 'Jogador ' + winner + ' venceu!' : 'Empate!';
     statusElement.textContent = connectionStatus.textContent;
+    renderOnlinePlayers();
+    renderChat();
     updateCellButtons();
     return;
   }
@@ -696,6 +1008,8 @@ function updateOnlineStatus() {
     leaveRoomButton.hidden = !onlineRoomCode;
   }
   statusElement.textContent = connectionStatus.textContent;
+  renderOnlinePlayers();
+  renderChat();
   updateCellButtons();
 }
 
@@ -704,6 +1018,10 @@ function updateOnlinePresence() {
 
   const members = getOnlineMembers();
   const memberIds = members.map((member) => member.id);
+  const wasFirstSync = !hasSyncedRoomPresence;
+  const newlyJoinedMember = !wasFirstSync && onlineSymbol === 'X'
+    ? members.find((member) => member.id !== onlinePlayerId && !previousPresenceMembers.has(member.id))
+    : null;
   onlinePlayerCount = members.length;
   onlineSpectator = members.length > 2 || (members.length > 0 && !memberIds.includes(onlinePlayerId));
 
@@ -719,6 +1037,9 @@ function updateOnlinePresence() {
     onlineSymbol = '';
   }
 
+  previousPresenceMembers = new Map(members.map((member) => [member.id, member]));
+  hasSyncedRoomPresence = true;
+
   if (onlineRoomCode && onlinePlayerCount >= 2 && !roomShare.hidden && onlineHostId) {
     const inviteUrl = new URL(window.location.href);
     inviteUrl.searchParams.set('room', onlineRoomCode);
@@ -727,6 +1048,7 @@ function updateOnlinePresence() {
   }
 
   updateOnlineStatus();
+  if (newlyJoinedMember) announcePlayerJoined(newlyJoinedMember);
   if (onlineSpectator) {
     void updateLobbyPresence('', 'idle');
   } else if (onlineSymbol === 'X') {
@@ -755,7 +1077,9 @@ function getOnlineSnapshot() {
     revision: onlineGameRevision,
     moves: [...moveHistory],
     stats: roomStats,
-    roundRecorded
+    roundRecorded,
+    startingPreference: roomStartingPreference,
+    chatMessages: [...chatMessages]
   };
 }
 
@@ -787,6 +1111,11 @@ function restoreOnlineSnapshot() {
       : [];
     roomStats = normalizeStats(saved.stats);
     roundRecorded = Boolean(saved.roundRecorded) || gameOver;
+    roomStartingPreference = ['X', 'O', 'random'].includes(saved.startingPreference)
+      ? saved.startingPreference
+      : 'X';
+    chatMessages = [];
+    mergeChatMessages(saved.chatMessages);
     renderGameInsights();
     return true;
   } catch (error) {
@@ -829,6 +1158,10 @@ function receiveOnlineState(payload) {
   roomStats = normalizeStats(payload.stats);
   gameOver = isWinner(board, 'X') || isWinner(board, 'O') || isTie(board);
   roundRecorded = Boolean(payload.roundRecorded) || gameOver;
+  roomStartingPreference = ['X', 'O', 'random'].includes(payload.startingPreference)
+    ? payload.startingPreference
+    : roomStartingPreference;
+  mergeChatMessages(payload.chatMessages);
   updateOnlineStatus();
 
   saveOnlineSnapshot();
@@ -865,10 +1198,18 @@ async function closeOnlineRoom(clearUrl = true) {
   onlineConnected = false;
   onlineSpectator = false;
   onlineGameRevision = 0;
+  roomStartingPreference = 'X';
   roomStats = createEmptyStats();
   moveHistory = [];
   roundRecorded = false;
+  chatMessages = [];
+  previousPresenceMembers = new Map();
+  hasSyncedRoomPresence = false;
+  window.clearTimeout(joinAlertTimeout);
   roomShare.hidden = true;
+  chatPanel.hidden = true;
+  onlinePlayersPanel.hidden = true;
+  playerJoinAlert.hidden = true;
   leaveRoomButton.hidden = true;
   if (clearUrl) updateRoomUrl('', '');
 }
@@ -880,6 +1221,7 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
     return;
   }
 
+  applyPlayerName();
   await closeOnlineRoom(false);
   onlineRoomCode = normalizedCode;
   onlineHostId = isCreator ? onlinePlayerId : hostId;
@@ -888,6 +1230,8 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
   onlineConnected = false;
   onlineSpectator = false;
   onlineGameRevision = 0;
+  previousPresenceMembers = new Map();
+  hasSyncedRoomPresence = false;
   roomCodeInput.value = normalizedCode;
   leaveRoomButton.hidden = false;
   connectionStatus.textContent = 'Conectando à sala…';
@@ -895,11 +1239,13 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
 
   if (isCreator) {
     board = Array(9).fill('');
-    currentPlayer = 'X';
+    roomStartingPreference = starterSelect.value;
+    currentPlayer = resolveStartingSymbol(roomStartingPreference);
     gameOver = false;
     roomStats = createEmptyStats();
     moveHistory = [];
     roundRecorded = false;
+    chatMessages = [];
   } else {
     restoreOnlineSnapshot();
   }
@@ -920,6 +1266,8 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
 
     channel
       .on('broadcast', { event: 'game-state' }, ({ payload }) => receiveOnlineState(payload))
+      .on('broadcast', { event: 'chat-message' }, ({ payload }) => receiveChatMessage(payload))
+      .on('broadcast', { event: 'room-notice' }, ({ payload }) => receiveRoomNotice(payload))
       .on('broadcast', { event: 'request-state' }, ({ payload }) => {
         if (payload && payload.room === onlineRoomCode && onlineSymbol === 'X') void sendOnlineState();
       })
@@ -927,10 +1275,12 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           onlineConnected = true;
-          await channel.track({ joinedAt: Date.now() });
+          await channel.track({ joinedAt: Date.now(), name: playerName });
           leaveRoomButton.hidden = false;
+          showGameScreen();
           if (isCreator) {
             roomShare.hidden = false;
+            if (!chatMessages.length) addSystemMessage('Sala criada. Compartilhe o convite para começar a conversar.');
             const inviteUrl = new URL(window.location.href);
             inviteUrl.searchParams.set('room', normalizedCode);
             inviteUrl.searchParams.set('host', onlinePlayerId);
@@ -963,7 +1313,7 @@ async function resetOnlineGame() {
   }
 
   board = Array(9).fill('');
-  currentPlayer = 'X';
+  currentPlayer = resolveStartingSymbol(roomStartingPreference);
   gameOver = false;
   moveHistory = [];
   roundRecorded = false;
@@ -979,9 +1329,6 @@ async function resetOnlineGame() {
 function startGame() {
   window.clearTimeout(aiMoveTimeout);
   aiMoveTimeout = undefined;
-  symbolField.hidden = false;
-  starterField.hidden = false;
-  onlineLobby.hidden = true;
   resetButton.textContent = 'Nova partida';
   if (!gl || !program) {
     statusElement.textContent = 'WebGL 2.0 não está disponível neste navegador.';
@@ -994,23 +1341,21 @@ function startGame() {
   aiThinking = false;
   moveHistory = [];
   roundRecorded = false;
-  playerOne = symbolSelect.value;
-  playerTwo = oppositeSymbol(playerOne);
-  human = playerOne;
-  ai = playerTwo;
-  currentPlayer = starterSelect.value === 'human' ? playerOne : playerTwo;
+  playerOne = 'X';
+  playerTwo = 'O';
+  human = symbolSelect.value;
+  ai = oppositeSymbol(human);
+  currentPlayer = resolveStartingSymbol(starterSelect.value);
 
   const isAiMode = modeSelect.value === 'ai';
-  difficultyField.hidden = !isAiMode;
-  starterSelect.options[0].textContent = isAiMode ? 'Você' : 'Jogador 1';
-  starterSelect.options[1].textContent = isAiMode ? 'IA' : 'Jogador 2';
   statusElement.textContent = isAiMode
-    ? (currentPlayer === human ? 'Sua vez. Faça a primeira jogada.' : 'A IA começa…')
-    : `Vez de ${currentPlayer} (${starterSelect.value === 'human' ? 'Jogador 1' : 'Jogador 2'}).`;
+    ? (currentPlayer === human ? 'Sua vez. Você joga com ' + human + '.' : 'A IA começa com ' + ai + '.')
+    : 'Vez de Jogador ' + currentPlayer + '.';
 
   updateCellButtons();
   renderBoard();
   renderGameInsights();
+  showGameScreen();
 
   if (isAiMode && currentPlayer === ai && gl) {
     scheduleAiMove();
@@ -1180,6 +1525,12 @@ resetButton.addEventListener('click', () => {
     startGame();
   }
 });
+startGameButton.addEventListener('click', () => {
+  startGame();
+});
+backToMenuButton.addEventListener('click', () => {
+  void returnToSetup();
+});
 themeToggle.addEventListener('click', updateTheme);
 modeSelect.addEventListener('change', () => {
   if (modeSelect.value === 'online') {
@@ -1188,13 +1539,18 @@ modeSelect.addEventListener('change', () => {
   }
 
   if (onlineChannel) void closeOnlineRoom();
-  startGame();
+  updateSetupControls();
 });
-symbolSelect.addEventListener('change', startGame);
-starterSelect.addEventListener('change', startGame);
+playerNameInput.value = playerName;
+updateSetupControls();
+
+chatForm.addEventListener('submit', (event) => {
+  void sendChatMessage(event);
+});
 
 createRoomButton.addEventListener('click', () => {
   if (modeSelect.value !== 'online') modeSelect.value = 'online';
+  applyPlayerName();
   enterOnlineMode();
   void connectToOnlineRoom(createRoomCode(), onlinePlayerId, true);
 });
@@ -1205,6 +1561,7 @@ findRoomsButton.addEventListener('click', () => {
 
 joinRoomButton.addEventListener('click', () => {
   if (modeSelect.value !== 'online') modeSelect.value = 'online';
+  applyPlayerName();
   enterOnlineMode();
   const pageUrl = new URL(window.location.href);
   const hostId = pageUrl.searchParams.get('room') === roomCodeInput.value.trim().toUpperCase()
@@ -1239,10 +1596,12 @@ leaveRoomButton.addEventListener('click', async () => {
 });
 
 const rendererAvailable = initializeRenderer();
+board = Array(9).fill('');
 renderGameInsights();
 if (!rendererAvailable) {
   webglWarning.hidden = false;
   statusElement.textContent = 'WebGL 2.0 não está disponível neste navegador.';
+  startGameButton.disabled = true;
   cells.forEach((cell) => { cell.disabled = true; });
 } else {
   if ('ResizeObserver' in window) {
@@ -1251,17 +1610,15 @@ if (!rendererAvailable) {
   } else {
     window.addEventListener('resize', resizeCanvas);
   }
-  startGame();
   resizeCanvas();
 }
 
 const requestedRoom = new URLSearchParams(window.location.search).get('room');
 if (rendererAvailable && requestedRoom) {
-  const requestedHost = new URLSearchParams(window.location.search).get('host') || '';
   modeSelect.value = 'online';
   enterOnlineMode();
   roomCodeInput.value = requestedRoom.toUpperCase();
-  void connectToOnlineRoom(requestedRoom, requestedHost, false);
+  connectionStatus.textContent = 'Confira seu nome e entre na sala para começar.';
 }
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

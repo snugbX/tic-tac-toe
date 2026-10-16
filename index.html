@@ -16,135 +16,187 @@
         <div>
           <p class="eyebrow">Jogo de estratégia</p>
           <h1>Jogo da Velha</h1>
-          <p class="intro">Desafie a IA, jogue no mesmo dispositivo ou convide alguém online.</p>
+          <p class="intro">Configure sua partida e desafie a IA, alguém ao seu lado ou um jogador online.</p>
         </div>
         <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
           Tema escuro
         </button>
       </header>
 
-      <section class="controls" aria-label="Configurações da partida">
-        <label>
-          Modo
-          <select id="mode">
-            <option value="ai">Contra a IA</option>
-            <option value="local">Dois jogadores</option>
-            <option value="online">Online com convite</option>
-          </select>
-        </label>
-        <label id="symbolField">
-          Seu símbolo
-          <select id="symbol">
-            <option value="X">X</option>
-            <option value="O">O</option>
-          </select>
-        </label>
-        <label id="starterField">
-          Quem começa?
-          <select id="starter">
-            <option value="human">Você / Jogador 1</option>
-            <option value="ai">IA / Jogador 2</option>
-          </select>
-        </label>
-        <label id="difficultyField">
-          Dificuldade
-          <select id="difficulty">
-            <option value="easy">Fácil</option>
-            <option value="medium">Média</option>
-            <option value="hard">Difícil</option>
-          </select>
-        </label>
-      </section>
-
-      <section class="online-lobby" id="onlineLobby" aria-label="Partida online" hidden>
-        <div class="lobby-heading">
-          <div>
-            <h2>Jogue com alguém à distância</h2>
-            <p>Crie uma sala e compartilhe o link, ou entre com um código.</p>
-          </div>
+      <section class="setup-screen" id="setupScreen" aria-label="Configuração da partida">
+        <div class="setup-intro">
+          <p class="eyebrow">Nova partida</p>
+          <h2>Como vamos jogar?</h2>
+          <p>Escolha o modo e quem começa. O tabuleiro aparece quando a partida estiver pronta.</p>
         </div>
-        <div class="lobby-actions">
-          <button class="lobby-button primary" id="createRoomButton" type="button">Criar sala</button>
-          <label class="room-code-field" for="roomCode">
-            Código da sala
-            <input id="roomCode" type="text" maxlength="16" autocomplete="off" autocapitalize="characters" placeholder="Ex.: AB12CD34" />
+        <section class="controls" aria-label="Configurações da partida">
+          <label id="playerNameField" hidden>
+            Seu nome na sala
+            <input id="playerName" type="text" maxlength="20" autocomplete="nickname" placeholder="Ex.: Alex" />
           </label>
-          <button class="lobby-button" id="joinRoomButton" type="button">Entrar na sala</button>
-        </div>
-        <div class="room-directory">
-          <button class="lobby-button" id="findRoomsButton" type="button">Procurar salas abertas</button>
-          <div class="room-list-container" id="roomListContainer" hidden>
-            <p class="room-list-message" id="roomListMessage" role="status" aria-live="polite">Procurando salas…</p>
-            <ul class="room-list" id="roomList"></ul>
-          </div>
-        </div>
-        <div class="room-share" id="roomShare" hidden>
-          <label for="roomLink">Link para convidar</label>
-          <div class="share-row">
-            <input id="roomLink" type="text" readonly />
-            <button class="lobby-button" id="copyRoomLinkButton" type="button">Copiar link</button>
-          </div>
-        </div>
-        <div class="online-room-footer">
-          <p class="connection-status" id="connectionStatus" role="status" aria-live="polite">Selecione uma opção para começar.</p>
-          <button class="leave-room-button" id="leaveRoomButton" type="button" hidden>Sair da sala</button>
-        </div>
-      </section>
+          <label>
+            Modo
+            <select id="mode">
+              <option value="ai">Contra a IA</option>
+              <option value="local">Dois jogadores</option>
+              <option value="online">Online com convite</option>
+            </select>
+          </label>
+          <label id="symbolField">
+            Seu símbolo
+            <select id="symbol">
+              <option value="X">X</option>
+              <option value="O">O</option>
+            </select>
+          </label>
+          <label id="starterField">
+            Quem começa?
+            <select id="starter">
+              <option value="X">X começa</option>
+              <option value="O">O começa</option>
+              <option value="random">Aleatório</option>
+            </select>
+            <span class="field-hint">Na sala online, vale a escolha de quem criou a sala.</span>
+          </label>
+          <label id="difficultyField">
+            Dificuldade
+            <select id="difficulty">
+              <option value="easy">Fácil</option>
+              <option value="medium">Média</option>
+              <option value="hard">Difícil</option>
+            </select>
+          </label>
+        </section>
 
-      <section class="game-panel" aria-label="Partida de jogo da velha">
-        <p class="status" id="status" role="status" aria-live="polite">Carregando jogo…</p>
-        <div class="board" id="board" aria-label="Tabuleiro">
-          <canvas id="boardCanvas" aria-hidden="true"></canvas>
-          <div class="board-inputs" role="group" aria-label="Casas do tabuleiro">
-            <button class="cell" type="button" data-index="0" aria-label="Casa 1, vazia"></button>
-            <button class="cell" type="button" data-index="1" aria-label="Casa 2, vazia"></button>
-            <button class="cell" type="button" data-index="2" aria-label="Casa 3, vazia"></button>
-            <button class="cell" type="button" data-index="3" aria-label="Casa 4, vazia"></button>
-            <button class="cell" type="button" data-index="4" aria-label="Casa 5, vazia"></button>
-            <button class="cell" type="button" data-index="5" aria-label="Casa 6, vazia"></button>
-            <button class="cell" type="button" data-index="6" aria-label="Casa 7, vazia"></button>
-            <button class="cell" type="button" data-index="7" aria-label="Casa 8, vazia"></button>
-            <button class="cell" type="button" data-index="8" aria-label="Casa 9, vazia"></button>
-          </div>
+        <div class="setup-actions" id="localSetupActions">
+          <p>As escolhas podem ser alteradas antes de começar.</p>
+          <button class="lobby-button primary setup-start-button" id="startGameButton" type="button">Começar partida</button>
         </div>
+
+        <section class="online-lobby" id="onlineLobby" aria-label="Partida online" hidden>
+          <div class="lobby-heading">
+            <div>
+              <h2>Jogue com alguém à distância</h2>
+              <p>Crie uma sala e compartilhe o link, ou entre com um código.</p>
+            </div>
+          </div>
+          <div class="lobby-actions">
+            <button class="lobby-button primary" id="createRoomButton" type="button">Criar sala</button>
+            <label class="room-code-field" for="roomCode">
+              Código da sala
+              <input id="roomCode" type="text" maxlength="16" autocomplete="off" autocapitalize="characters" placeholder="Ex.: AB12CD34" />
+            </label>
+            <button class="lobby-button" id="joinRoomButton" type="button">Entrar na sala</button>
+          </div>
+          <div class="room-directory">
+            <button class="lobby-button" id="findRoomsButton" type="button">Procurar salas abertas</button>
+            <div class="room-list-container" id="roomListContainer" hidden>
+              <p class="room-list-message" id="roomListMessage" role="status" aria-live="polite">Procurando salas…</p>
+              <ul class="room-list" id="roomList"></ul>
+            </div>
+          </div>
+          <div class="online-room-footer">
+            <p class="connection-status" id="connectionStatus" role="status" aria-live="polite">Selecione uma opção para começar.</p>
+            <button class="leave-room-button" id="leaveRoomButton" type="button" hidden>Sair da sala</button>
+          </div>
+        </section>
         <p class="webgl-warning" id="webglWarning" hidden>
           Este navegador não disponibilizou WebGL 2.0. Ative a aceleração gráfica ou abra o jogo em um navegador compatível.
         </p>
-        <button class="reset-button" id="resetButton" type="button">Nova partida</button>
-        <section class="game-insights" aria-label="Placar e histórico">
-          <div class="insight-section">
+      </section>
+
+      <section class="game-screen" id="gameScreen" aria-label="Partida de jogo da velha" hidden>
+        <section class="game-panel" aria-label="Partida de jogo da velha">
+          <div class="game-toolbar">
+            <p class="status" id="status" role="status" aria-live="polite">Configure a partida para começar.</p>
+            <button class="back-menu-button" id="backToMenuButton" type="button">Menu principal</button>
+          </div>
+          <section class="online-players" id="onlinePlayersPanel" aria-label="Jogadores da sala" hidden>
             <div class="insight-heading">
-              <h2>Placar</h2>
-              <span class="round-count" id="roundCount">0 partidas</span>
+              <h2>Jogadores</h2>
+              <span class="room-badge" id="roomBadge"></span>
             </div>
-            <div class="scoreboard">
-              <div class="score-card score-x">
-                <span>X venceu</span>
-                <strong id="scoreX">0</strong>
+            <div class="player-cards" id="playerCards"></div>
+            <div class="room-share" id="roomShare" hidden>
+              <label for="roomLink">Link para convidar</label>
+              <div class="share-row">
+                <input id="roomLink" type="text" readonly />
+                <button class="lobby-button" id="copyRoomLinkButton" type="button">Copiar link</button>
               </div>
-              <div class="score-card score-o">
-                <span>O venceu</span>
-                <strong id="scoreO">0</strong>
-              </div>
-              <div class="score-card score-draw">
-                <span>Empates</span>
-                <strong id="scoreDraws">0</strong>
-              </div>
+            </div>
+          </section>
+          <p class="player-join-alert" id="playerJoinAlert" role="status" aria-live="polite" hidden>
+            <span class="join-alert-icon" aria-hidden="true">✦</span>
+            <span id="playerJoinAlertText"></span>
+          </p>
+          <div class="board" id="board" aria-label="Tabuleiro">
+            <canvas id="boardCanvas" aria-hidden="true"></canvas>
+            <div class="board-inputs" role="group" aria-label="Casas do tabuleiro">
+              <button class="cell" type="button" data-index="0" aria-label="Casa 1, vazia"></button>
+              <button class="cell" type="button" data-index="1" aria-label="Casa 2, vazia"></button>
+              <button class="cell" type="button" data-index="2" aria-label="Casa 3, vazia"></button>
+              <button class="cell" type="button" data-index="3" aria-label="Casa 4, vazia"></button>
+              <button class="cell" type="button" data-index="4" aria-label="Casa 5, vazia"></button>
+              <button class="cell" type="button" data-index="5" aria-label="Casa 6, vazia"></button>
+              <button class="cell" type="button" data-index="6" aria-label="Casa 7, vazia"></button>
+              <button class="cell" type="button" data-index="7" aria-label="Casa 8, vazia"></button>
+              <button class="cell" type="button" data-index="8" aria-label="Casa 9, vazia"></button>
             </div>
           </div>
-          <div class="insight-section">
-            <div class="insight-heading">
-              <h2>Jogadas da rodada</h2>
+          <button class="reset-button" id="resetButton" type="button">Nova partida</button>
+
+          <section class="chat-panel" id="chatPanel" aria-label="Chat da sala online" hidden>
+            <div class="chat-heading">
+              <div>
+                <h2>Conversa da partida</h2>
+                <p>Mensagens visíveis apenas para quem está nesta sala.</p>
+              </div>
+              <span class="chat-live-indicator"><span></span> Ao vivo</span>
             </div>
-            <ol class="move-history" id="moveHistory"></ol>
-          </div>
-          <div class="insight-section">
-            <div class="insight-heading">
-              <h2>Partidas recentes</h2>
-              <button class="clear-stats-button" id="resetStatsButton" type="button">Zerar dados</button>
+            <ol class="chat-messages" id="chatMessages" aria-live="polite" aria-relevant="additions"></ol>
+            <form class="chat-form" id="chatForm">
+              <label class="visually-hidden" for="chatInput">Escreva uma mensagem</label>
+              <input id="chatInput" type="text" maxlength="300" autocomplete="off" placeholder="Escreva uma mensagem…" />
+              <button class="chat-send-button" id="sendChatButton" type="submit" aria-label="Enviar mensagem">Enviar</button>
+            </form>
+            <p class="chat-hint" id="chatHint">Entre na sala com dois jogadores para conversar.</p>
+          </section>
+
+          <section class="game-insights" aria-label="Placar e histórico">
+            <div class="insight-section">
+              <div class="insight-heading">
+                <h2>Placar</h2>
+                <span class="round-count" id="roundCount">0 partidas</span>
+              </div>
+              <div class="scoreboard">
+                <div class="score-card score-x">
+                  <span>X venceu</span>
+                  <strong id="scoreX">0</strong>
+                </div>
+                <div class="score-card score-o">
+                  <span>O venceu</span>
+                  <strong id="scoreO">0</strong>
+                </div>
+                <div class="score-card score-draw">
+                  <span>Empates</span>
+                  <strong id="scoreDraws">0</strong>
+                </div>
+              </div>
             </div>
-            <ol class="match-history" id="matchHistory"></ol>
-          </div>
+            <div class="insight-section">
+              <div class="insight-heading">
+                <h2>Jogadas da rodada</h2>
+              </div>
+              <ol class="move-history" id="moveHistory"></ol>
+            </div>
+            <div class="insight-section">
+              <div class="insight-heading">
+                <h2>Partidas recentes</h2>
+                <button class="clear-stats-button" id="resetStatsButton" type="button">Zerar dados</button>
+              </div>
+              <ol class="match-history" id="matchHistory"></ol>
+            </div>
+          </section>
         </section>
       </section>
 

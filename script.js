@@ -257,7 +257,7 @@ function renderBoard() {
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   gl.uniform2f(resolutionUniform, width, height);
 
-  const markThickness = Math.max(6, width * 0.035);
+  const markThickness = Math.max(5, width * 0.03);
   board.forEach((mark, index) => {
     if (!mark) return;
 
@@ -265,25 +265,25 @@ function renderBoard() {
     const column = index % 3;
     const centerX = (column + 0.5) * (width / 3);
     const centerY = (row + 0.5) * (height / 3);
-    const markSize = width * 0.16;
+    const markSize = width * 0.145;
 
     if (mark === 'X') {
       const cross = [];
       appendSegment(cross, centerX - markSize, centerY - markSize, centerX + markSize, centerY + markSize, markThickness, true);
       appendSegment(cross, centerX + markSize, centerY - markSize, centerX - markSize, centerY + markSize, markThickness, true);
       const glow = [];
-      appendSegment(glow, centerX - markSize, centerY - markSize, centerX + markSize, centerY + markSize, markThickness * 3.4, true);
-      appendSegment(glow, centerX + markSize, centerY - markSize, centerX - markSize, centerY + markSize, markThickness * 3.4, true);
+      appendSegment(glow, centerX - markSize, centerY - markSize, centerX + markSize, centerY + markSize, markThickness * 2.2, true);
+      appendSegment(glow, centerX + markSize, centerY - markSize, centerX - markSize, centerY + markSize, markThickness * 2.2, true);
       const markColor = colorFromCss('--x-color');
-      drawGeometry(glow, [...markColor.slice(0, 3), 0.2]);
+      drawGeometry(glow, [...markColor.slice(0, 3), 0.14]);
       drawGeometry(cross, markColor);
     } else {
       const ring = [];
       appendRing(ring, centerX, centerY, markSize, markThickness);
       const glow = [];
-      appendRing(glow, centerX, centerY, markSize, markThickness * 3.4);
+      appendRing(glow, centerX, centerY, markSize, markThickness * 2.2);
       const markColor = colorFromCss('--o-color');
-      drawGeometry(glow, [...markColor.slice(0, 3), 0.2]);
+      drawGeometry(glow, [...markColor.slice(0, 3), 0.14]);
       drawGeometry(ring, markColor);
     }
   });

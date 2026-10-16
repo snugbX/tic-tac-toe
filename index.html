@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Jogo da velha com WebGL 2.0, IA Minimax e modo para dois jogadores." />
+    <meta name="theme-color" content="#f4f6fb" />
+    <title>Jogo da Velha — WebGL 2.0</title>
+    <link rel="icon" href="icon-192.png" type="image/png" />
+    <link rel="manifest" href="manifest.json" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Jogo de estratégia</p>
+          <h1>Jogo da Velha</h1>
+          <p class="intro">Desafie a IA ou jogue com alguém ao seu lado.</p>
+        </div>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
+          Tema escuro
+        </button>
+      </header>
+
+      <section class="controls" aria-label="Configurações da partida">
+        <label>
+          Modo
+          <select id="mode">
+            <option value="ai">Contra a IA</option>
+            <option value="local">Dois jogadores</option>
+          </select>
+        </label>
+        <label>
+          Seu símbolo
+          <select id="symbol">
+            <option value="X">X</option>
+            <option value="O">O</option>
+          </select>
+        </label>
+        <label>
+          Quem começa?
+          <select id="starter">
+            <option value="human">Você / Jogador 1</option>
+            <option value="ai">IA / Jogador 2</option>
+          </select>
+        </label>
+        <label id="difficultyField">
+          Dificuldade
+          <select id="difficulty">
+            <option value="easy">Fácil</option>
+            <option value="medium">Média</option>
+            <option value="hard">Difícil</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="game-panel" aria-label="Partida de jogo da velha">
+        <p class="status" id="status" role="status" aria-live="polite">Carregando jogo…</p>
+        <div class="board" id="board" aria-label="Tabuleiro">
+          <canvas id="boardCanvas" aria-hidden="true"></canvas>
+          <div class="board-inputs" role="group" aria-label="Casas do tabuleiro">
+            <button class="cell" type="button" data-index="0" aria-label="Casa 1, vazia"></button>
+            <button class="cell" type="button" data-index="1" aria-label="Casa 2, vazia"></button>
+            <button class="cell" type="button" data-index="2" aria-label="Casa 3, vazia"></button>
+            <button class="cell" type="button" data-index="3" aria-label="Casa 4, vazia"></button>
+            <button class="cell" type="button" data-index="4" aria-label="Casa 5, vazia"></button>
+            <button class="cell" type="button" data-index="5" aria-label="Casa 6, vazia"></button>
+            <button class="cell" type="button" data-index="6" aria-label="Casa 7, vazia"></button>
+            <button class="cell" type="button" data-index="7" aria-label="Casa 8, vazia"></button>
+            <button class="cell" type="button" data-index="8" aria-label="Casa 9, vazia"></button>
+          </div>
+        </div>
+        <p class="webgl-warning" id="webglWarning" hidden>
+          Este navegador não disponibilizou WebGL 2.0. Ative a aceleração gráfica ou abra o jogo em um navegador compatível.
+        </p>
+        <button class="reset-button" id="resetButton" type="button">Nova partida</button>
+      </section>
+
+      <footer class="page-footer">Renderizado com WebGL 2.0</footer>
+    </main>
+    <script src="script.js" defer></script>
+  </body>
+</html>

@@ -257,17 +257,6 @@ function renderBoard() {
   gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
   gl.uniform2f(resolutionUniform, width, height);
 
-  const grid = [];
-  const margin = width * 0.075;
-  const firstThird = width / 3;
-  const secondThird = (width * 2) / 3;
-  const gridThickness = Math.max(2, width * 0.012);
-  appendSegment(grid, firstThird, margin, firstThird, height - margin, gridThickness);
-  appendSegment(grid, secondThird, margin, secondThird, height - margin, gridThickness);
-  appendSegment(grid, margin, firstThird, width - margin, firstThird, gridThickness);
-  appendSegment(grid, margin, secondThird, width - margin, secondThird, gridThickness);
-  drawGeometry(grid, colorFromCss('--grid-color'));
-
   const markThickness = Math.max(6, width * 0.035);
   board.forEach((mark, index) => {
     if (!mark) return;
@@ -282,11 +271,20 @@ function renderBoard() {
       const cross = [];
       appendSegment(cross, centerX - markSize, centerY - markSize, centerX + markSize, centerY + markSize, markThickness, true);
       appendSegment(cross, centerX + markSize, centerY - markSize, centerX - markSize, centerY + markSize, markThickness, true);
-      drawGeometry(cross, colorFromCss('--x-color'));
+      const glow = [];
+      appendSegment(glow, centerX - markSize, centerY - markSize, centerX + markSize, centerY + markSize, markThickness * 3.4, true);
+      appendSegment(glow, centerX + markSize, centerY - markSize, centerX - markSize, centerY + markSize, markThickness * 3.4, true);
+      const markColor = colorFromCss('--x-color');
+      drawGeometry(glow, [...markColor.slice(0, 3), 0.2]);
+      drawGeometry(cross, markColor);
     } else {
       const ring = [];
       appendRing(ring, centerX, centerY, markSize, markThickness);
-      drawGeometry(ring, colorFromCss('--o-color'));
+      const glow = [];
+      appendRing(glow, centerX, centerY, markSize, markThickness * 3.4);
+      const markColor = colorFromCss('--o-color');
+      drawGeometry(glow, [...markColor.slice(0, 3), 0.2]);
+      drawGeometry(ring, markColor);
     }
   });
 }
@@ -1510,7 +1508,7 @@ function updateTheme() {
   const isDark = document.body.classList.toggle('dark');
   themeToggle.setAttribute('aria-pressed', String(isDark));
   themeToggle.textContent = isDark ? 'Tema claro' : 'Tema escuro';
-  document.querySelector('meta[name="theme-color"]').content = isDark ? '#161c2a' : '#f4f6fb';
+  document.querySelector('meta[name="theme-color"]').content = isDark ? '#080914' : '#f4f3fb';
   renderBoard();
 }
 

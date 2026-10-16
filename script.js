@@ -55,6 +55,8 @@ const chatInput = document.getElementById('chatInput');
 const chatMessagesElement = document.getElementById('chatMessages');
 const chatHint = document.getElementById('chatHint');
 const sendChatButton = document.getElementById('sendChatButton');
+const chatVoiceToggle = document.getElementById('chatVoiceToggle');
+const chatVoiceToggleLabel = document.getElementById('chatVoiceToggleLabel');
 const boardElement = document.getElementById('board');
 const canvas = document.getElementById('boardCanvas');
 const webglWarning = document.getElementById('webglWarning');
@@ -104,6 +106,8 @@ let roomStats = createEmptyStats();
 let moveHistory = [];
 let roundRecorded = false;
 let chatMessages = [];
+let chatVoiceEnabled = loadChatVoicePreference();
+const spokenIncomingMessageIds = new Set();
 let previousPresenceMembers = new Map();
 let hasSyncedRoomPresence = false;
 let joinAlertTimeout;
@@ -354,6 +358,67 @@ function loadSavedPlayerName() {
   }
 }
 
+function loadChatVoicePreference() {
+  try {
+    return localStorage.getItem('tic-tac-toe-chat-voice') !== 'false';
+  } catch (error) {
+    return true;
+  }
+}
+
+function updateChatVoiceToggle() {
+  const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
+  chatVoiceToggle.disabled = !supported;
+  chatVoiceToggle.setAttribute('aria-pressed', String(chatVoiceEnabled));
+  chatVoiceToggle.setAttribute('aria-label', supported
+    ? 'Leitura automática de mensagens ' + (chatVoiceEnabled ? 'ativada' : 'desativada')
+    : 'Leitura automática indisponível neste navegador');
+  chatVoiceToggleLabel.textContent = supported
+    ? (chatVoiceEnabled ? 'Leitura ligada' : 'Leitura desligada')
+    : 'Áudio indisponível';
+  chatVoiceToggle.querySelector('[aria-hidden="true"]').textContent = supported
+    ? (chatVoiceEnabled ? '🔊' : '🔇')
+    : '🔈';
+}
+
+chatVoiceToggle.addEventListener('click', () => {
+  chatVoiceEnabled = !chatVoiceEnabled;
+  if (!chatVoiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  try {
+    localStorage.setItem('tic-tac-toe-chat-voice', String(chatVoiceEnabled));
+  } catch (error) {
+    // A preferência continua valendo até a página ser fechada.
+  }
+  updateChatVoiceToggle();
+});
+
+updateChatVoiceToggle();
+
+function speakIncomingChatMessage(message) {
+  if (!chatVoiceEnabled || !message || message.type !== 'chat'
+    || message.senderId === onlinePlayerId || spokenIncomingMessageIds.has(message.id)
+    || !('speechSynthesis' in window) || !('SpeechSynthesisUtterance' in window)) return;
+
+  spokenIncomingMessageIds.add(message.id);
+  if (spokenIncomingMessageIds.size > 120) {
+    spokenIncomingMessageIds.delete(spokenIncomingMessageIds.values().next().value);
+  }
+
+  try {
+    const utterance = new SpeechSynthesisUtterance(message.senderName + ' diz: ' + message.text);
+    utterance.lang = 'pt-BR';
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    const portugueseVoice = window.speechSynthesis.getVoices()
+      .find((voice) => voice.lang.toLowerCase().startsWith('pt-br'))
+      || window.speechSynthesis.getVoices().find((voice) => voice.lang.toLowerCase().startsWith('pt'));
+    if (portugueseVoice) utterance.voice = portugueseVoice;
+    window.speechSynthesis.speak(utterance);
+  } catch (error) {
+    console.warn('Não foi possível reproduzir a leitura da mensagem:', error);
+  }
+}
+
 function applyPlayerName() {
   const cleanedName = String(playerNameInput.value || '').replace(/\s+/g, ' ').trim().slice(0, 20);
   playerName = cleanedName || playerName || ('Jogador ' + Math.floor(1000 + Math.random() * 9000));
@@ -384,6 +449,7 @@ function updateSetupControls() {
 function showGameScreen() {
   setupScreen.hidden = true;
   gameScreen.hidden = false;
+  document.body.classList.add('game-active');
   window.requestAnimationFrame(() => {
     resizeCanvas();
     renderBoard();
@@ -399,6 +465,7 @@ async function returnToSetup() {
   playerJoinAlert.hidden = true;
   gameScreen.hidden = true;
   setupScreen.hidden = false;
+  document.body.classList.remove('game-active');
   updateSetupControls();
   if (modeSelect.value === 'online') {
     connectionStatus.textContent = 'Você saiu da sala. Crie outra ou entre com um código.';
@@ -970,6 +1037,7 @@ function receiveChatMessage(payload) {
   const message = normalizeChatMessage(payload.message);
   if (!message || message.senderId === onlinePlayerId) return;
   mergeChatMessages([message]);
+  speakIncomingChatMessage(message);
   saveOnlineSnapshot();
 }
 

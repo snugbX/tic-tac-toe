@@ -8,7 +8,7 @@
     <title>Jogo da Velha — WebGL 2.0</title>
     <link rel="icon" href="icon-192.png" type="image/png" />
     <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" href="style.css?v=9" />
+    <link rel="stylesheet" href="style.css?v=10" />
   </head>
   <body class="dark">
     <main class="app-shell">
@@ -111,6 +111,7 @@
             <p class="status" id="status" role="status" aria-live="polite">Configure a partida para começar.</p>
             <button class="back-menu-button" id="backToMenuButton" type="button">Menu principal</button>
           </div>
+          <aside class="game-sidebar" aria-label="Informações e conversa da partida">
           <section class="online-players" id="onlinePlayersPanel" aria-label="Jogadores da sala" hidden>
             <div class="insight-heading">
               <h2>Jogadores</h2>
@@ -129,29 +130,19 @@
             <span class="join-alert-icon" aria-hidden="true">✦</span>
             <span id="playerJoinAlertText"></span>
           </p>
-          <div class="board" id="board" aria-label="Tabuleiro">
-            <canvas id="boardCanvas" aria-hidden="true"></canvas>
-            <div class="board-inputs" role="group" aria-label="Casas do tabuleiro">
-              <button class="cell" type="button" data-index="0" aria-label="Casa 1, vazia"></button>
-              <button class="cell" type="button" data-index="1" aria-label="Casa 2, vazia"></button>
-              <button class="cell" type="button" data-index="2" aria-label="Casa 3, vazia"></button>
-              <button class="cell" type="button" data-index="3" aria-label="Casa 4, vazia"></button>
-              <button class="cell" type="button" data-index="4" aria-label="Casa 5, vazia"></button>
-              <button class="cell" type="button" data-index="5" aria-label="Casa 6, vazia"></button>
-              <button class="cell" type="button" data-index="6" aria-label="Casa 7, vazia"></button>
-              <button class="cell" type="button" data-index="7" aria-label="Casa 8, vazia"></button>
-              <button class="cell" type="button" data-index="8" aria-label="Casa 9, vazia"></button>
-            </div>
-          </div>
-          <button class="reset-button" id="resetButton" type="button">Nova partida</button>
-
           <section class="chat-panel" id="chatPanel" aria-label="Chat da sala online" hidden>
             <div class="chat-heading">
               <div>
                 <h2>Conversa da partida</h2>
                 <p>Mensagens visíveis apenas para quem está nesta sala.</p>
               </div>
-              <span class="chat-live-indicator"><span></span> Ao vivo</span>
+              <div class="chat-heading-actions">
+                <button class="chat-voice-toggle" id="chatVoiceToggle" type="button" aria-pressed="true">
+                  <span aria-hidden="true">🔊</span>
+                  <span id="chatVoiceToggleLabel">Leitura ligada</span>
+                </button>
+                <span class="chat-live-indicator"><span></span> Ao vivo</span>
+              </div>
             </div>
             <ol class="chat-messages" id="chatMessages" aria-live="polite" aria-relevant="additions"></ol>
             <form class="chat-form" id="chatForm">
@@ -197,12 +188,28 @@
               <ol class="match-history" id="matchHistory"></ol>
             </div>
           </section>
+          </aside>
+          <div class="board" id="board" aria-label="Tabuleiro">
+            <canvas id="boardCanvas" aria-hidden="true"></canvas>
+            <div class="board-inputs" role="group" aria-label="Casas do tabuleiro">
+              <button class="cell" type="button" data-index="0" aria-label="Casa 1, vazia"></button>
+              <button class="cell" type="button" data-index="1" aria-label="Casa 2, vazia"></button>
+              <button class="cell" type="button" data-index="2" aria-label="Casa 3, vazia"></button>
+              <button class="cell" type="button" data-index="3" aria-label="Casa 4, vazia"></button>
+              <button class="cell" type="button" data-index="4" aria-label="Casa 5, vazia"></button>
+              <button class="cell" type="button" data-index="5" aria-label="Casa 6, vazia"></button>
+              <button class="cell" type="button" data-index="6" aria-label="Casa 7, vazia"></button>
+              <button class="cell" type="button" data-index="7" aria-label="Casa 8, vazia"></button>
+              <button class="cell" type="button" data-index="8" aria-label="Casa 9, vazia"></button>
+            </div>
+          </div>
+          <button class="reset-button" id="resetButton" type="button">Nova partida</button>
         </section>
       </section>
 
       <footer class="page-footer">Renderizado com WebGL 2.0</footer>
     </main>
     <script src="supabase-config.js" defer></script>
-    <script src="script.js?v=9" defer></script>
+    <script src="script.js?v=10" defer></script>
   </body>
 </html>

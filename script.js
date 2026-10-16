@@ -93,6 +93,8 @@ let currentLobbyHostId = '';
 let currentLobbyCreatedAt = 0;
 let onlineRoomCode = '';
 let onlineHostId = '';
+let onlineHostEpoch = 0;
+let onlineJoinedAt = 0;
 let onlinePlayerId = getOnlinePlayerId();
 let onlineSymbol = '';
 let onlinePlayerCount = 0;
@@ -812,13 +814,59 @@ function getOnlineMembers() {
 
   const presence = onlineChannel.presenceState();
   return Object.entries(presence).map(([id, values]) => {
-    const metadata = Array.isArray(values) ? values[0] : {};
+    const metadata = Array.isArray(values)
+      ? [...values].sort((left, right) => (Number(right.hostEpoch) || 0) - (Number(left.hostEpoch) || 0))[0]
+      : {};
     return {
       id,
       name: String(metadata && metadata.name || '').slice(0, 20),
-      joinedAt: Number(metadata && metadata.joinedAt) || 0
+      joinedAt: Number(metadata && metadata.joinedAt) || 0,
+      symbol: metadata && (metadata.symbol === 'X' || metadata.symbol === 'O') ? metadata.symbol : '',
+      hostId: String(metadata && metadata.hostId || ''),
+      hostEpoch: Number(metadata && metadata.hostEpoch) || 0
     };
   }).sort((left, right) => left.joinedAt - right.joinedAt || left.id.localeCompare(right.id));
+}
+
+async function trackRoomPresence() {
+  if (!onlineChannel || !onlineConnected) return;
+
+  const members = getOnlineMembers();
+  const advertisedOwner = members
+    .filter((member) => member.hostId === member.id)
+    .sort((left, right) => right.hostEpoch - left.hostEpoch
+      || left.joinedAt - right.joinedAt || left.id.localeCompare(right.id))[0];
+  if (advertisedOwner) {
+    onlineHostId = advertisedOwner.id;
+    onlineHostEpoch = Math.max(onlineHostEpoch, advertisedOwner.hostEpoch);
+  }
+
+  const owner = members.find((member) => member.id === onlineHostId);
+  const ownMember = members.find((member) => member.id === onlinePlayerId);
+  if (ownMember && ownMember.symbol) {
+    onlineSymbol = ownMember.symbol;
+  } else if (onlinePlayerId === onlineHostId) {
+    onlineSymbol = onlineSymbol || 'X';
+  } else if (owner && owner.symbol) {
+    onlineSymbol = oppositeSymbol(owner.symbol);
+  } else if (!onlineSymbol) {
+    onlineSymbol = 'O';
+  }
+  if (onlinePlayerId !== onlineHostId && owner && owner.symbol === onlineSymbol) {
+    onlineSymbol = oppositeSymbol(owner.symbol);
+  }
+
+  try {
+    await onlineChannel.track({
+      joinedAt: onlineJoinedAt || Date.now(),
+      name: playerName,
+      symbol: onlineSymbol,
+      hostId: onlineHostId,
+      hostEpoch: onlineHostEpoch
+    });
+  } catch (error) {
+    console.warn('Não foi possível atualizar a presença na sala:', error);
+  }
 }
 
 function createMessageId() {
@@ -935,6 +983,13 @@ function showPlayerJoinAlert(name) {
   joinAlertTimeout = window.setTimeout(() => { playerJoinAlert.hidden = true; }, 6500);
 }
 
+function showRoomOwnerTransferAlert(name) {
+  playerJoinAlertText.textContent = 'O anfitrião se desconectou. ' + name + ' assumiu a sala; a partida continua.';
+  playerJoinAlert.hidden = false;
+  window.clearTimeout(joinAlertTimeout);
+  joinAlertTimeout = window.setTimeout(() => { playerJoinAlert.hidden = true; }, 8500);
+}
+
 function receiveRoomNotice(payload) {
   if (!payload || payload.room !== onlineRoomCode || payload.senderId === onlinePlayerId) return;
   const message = normalizeChatMessage(payload.message);
@@ -971,9 +1026,8 @@ function renderOnlinePlayers(members = getOnlineMembers()) {
   roomBadge.textContent = onlineRoomCode ? 'SALA ' + onlineRoomCode : '';
   if (!inOnlineRoom) return;
 
-  const hostId = onlineHostId || members[0]?.id || '';
-  const xPlayer = members.find((member) => member.id === hostId);
-  const oPlayer = members.find((member) => member.id !== hostId);
+  const xPlayer = members.find((member) => member.symbol === 'X');
+  const oPlayer = members.find((member) => member.symbol === 'O');
   playerCards.replaceChildren();
 
   [
@@ -991,7 +1045,7 @@ function renderOnlinePlayers(members = getOnlineMembers()) {
     details.className = 'player-card-details';
     const name = document.createElement('span');
     name.className = 'player-card-name';
-    name.textContent = player && player.name ? player.name : (isSelf ? playerName : (symbol === 'X' ? 'Anfitrião' : 'Aguardando jogador'));
+    name.textContent = player && player.name ? player.name : (isSelf ? playerName : 'Aguardando jogador');
     const state = document.createElement('span');
     state.className = 'player-card-status';
     state.textContent = player
@@ -1059,9 +1113,9 @@ function updateOnlineStatus() {
   } else if (!onlineConnected) {
     connectionStatus.textContent = onlineRoomCode ? 'Conectando à sala…' : 'Crie uma sala ou entre com o código de um amigo.';
   } else if (onlinePlayerCount < 2) {
-    connectionStatus.textContent = onlineSymbol === 'X'
-      ? 'Sala criada. Compartilhe o link e aguarde o outro jogador.'
-      : 'Aguardando o criador da sala entrar.';
+    connectionStatus.textContent = onlinePlayerId === onlineHostId
+      ? 'Você é o anfitrião. Compartilhe o link e aguarde o outro jogador.'
+      : 'Aguardando o anfitrião da sala entrar.';
   } else if (!onlineSymbol) {
     connectionStatus.textContent = 'Definindo os jogadores…';
   } else if (onlineSymbol === currentPlayer) {
@@ -1085,47 +1139,89 @@ function updateOnlinePresence() {
   const members = getOnlineMembers();
   const memberIds = members.map((member) => member.id);
   const wasFirstSync = !hasSyncedRoomPresence;
-  const newlyJoinedMember = !wasFirstSync && onlineSymbol === 'X'
+  const newlyJoinedMember = !wasFirstSync
     ? members.find((member) => member.id !== onlinePlayerId && !previousPresenceMembers.has(member.id))
     : null;
-  onlinePlayerCount = members.length;
-  onlineSpectator = members.length > 2 || (members.length > 0 && !memberIds.includes(onlinePlayerId));
+  const previousHostId = onlineHostId;
+  const advertisedOwners = members
+    .filter((member) => member.hostId === member.id)
+    .sort((left, right) => right.hostEpoch - left.hostEpoch
+      || left.joinedAt - right.joinedAt || left.id.localeCompare(right.id));
+  let ownershipTransferred = false;
 
-  if (!onlineHostId && members.length >= 2) {
+  if (advertisedOwners.length) {
+    onlineHostId = advertisedOwners[0].id;
+    onlineHostEpoch = Math.max(onlineHostEpoch, advertisedOwners[0].hostEpoch);
+  } else if (onlineHostId && !memberIds.includes(onlineHostId) && members.length) {
+    const successor = members.find((member) => member.symbol === 'X' || member.symbol === 'O') || members[0];
+    onlineHostId = successor.id;
+    onlineHostEpoch = Math.max(onlineHostEpoch, ...members.map((member) => member.hostEpoch)) + 1;
+    ownershipTransferred = previousHostId !== onlineHostId;
+  } else if (!onlineHostId && members.length) {
     onlineHostId = members[0].id;
+    onlineHostEpoch = Math.max(onlineHostEpoch, ...members.map((member) => member.hostEpoch));
   }
 
-  if (onlineHostId) {
-    onlineSymbol = onlinePlayerId === onlineHostId ? 'X' : 'O';
-  } else if (members.length >= 2) {
-    onlineSymbol = members[0].id === onlinePlayerId ? 'X' : 'O';
-  } else {
-    onlineSymbol = '';
+  onlinePlayerCount = members.length;
+  onlineSpectator = members.length > 2 || (members.length > 0 && !memberIds.includes(onlinePlayerId));
+  const ownMember = members.find((member) => member.id === onlinePlayerId);
+  const currentOwner = members.find((member) => member.id === onlineHostId);
+  if (ownMember && (ownMember.symbol === 'X' || ownMember.symbol === 'O')) {
+    onlineSymbol = ownMember.symbol;
+  } else if (!onlineSymbol && onlinePlayerId === onlineHostId) {
+    onlineSymbol = 'X';
+  } else if (!onlineSymbol && currentOwner && currentOwner.symbol) {
+    onlineSymbol = oppositeSymbol(currentOwner.symbol);
+  } else if (!onlineSymbol && onlineHostId) {
+    onlineSymbol = 'O';
+  }
+  if (onlinePlayerId !== onlineHostId && currentOwner && currentOwner.symbol === onlineSymbol) {
+    onlineSymbol = oppositeSymbol(currentOwner.symbol);
   }
 
   previousPresenceMembers = new Map(members.map((member) => [member.id, member]));
   hasSyncedRoomPresence = true;
 
-  if (onlineRoomCode && onlinePlayerCount >= 2 && !roomShare.hidden && onlineHostId) {
+  const isRoomOwner = Boolean(onlineHostId && onlinePlayerId === onlineHostId && !onlineSpectator);
+  roomShare.hidden = !isRoomOwner;
+  if (onlineRoomCode && onlineHostId) {
     const inviteUrl = new URL(window.location.href);
     inviteUrl.searchParams.set('room', onlineRoomCode);
     inviteUrl.searchParams.set('host', onlineHostId);
-    roomLinkInput.value = inviteUrl.toString();
+    updateRoomUrl(onlineRoomCode, onlineHostId);
+    if (isRoomOwner) roomLinkInput.value = inviteUrl.toString();
   }
 
   updateOnlineStatus();
-  if (newlyJoinedMember) announcePlayerJoined(newlyJoinedMember);
+  if (ownershipTransferred) {
+    const successor = members.find((member) => member.id === onlineHostId);
+    const successorName = successor && successor.name ? successor.name : playerName;
+    if (!gameOver && onlineSymbol && currentPlayer !== onlineSymbol) currentPlayer = onlineSymbol;
+    onlineGameRevision += 1;
+    showRoomOwnerTransferAlert(successorName);
+    addSystemMessage('O anfitrião se desconectou. ' + successorName
+      + ' assumiu a sala; o tabuleiro e o placar foram mantidos.', { announce: true });
+    updateOnlineStatus();
+  }
+  if (newlyJoinedMember && isRoomOwner) announcePlayerJoined(newlyJoinedMember);
+
+  const ownPresence = ownMember;
+  if (ownPresence && (ownPresence.hostId !== onlineHostId
+    || ownPresence.hostEpoch !== onlineHostEpoch || ownPresence.symbol !== onlineSymbol)) {
+    void trackRoomPresence();
+  }
+
   if (onlineSpectator) {
     void updateLobbyPresence('', 'idle');
-  } else if (onlineSymbol === 'X') {
+  } else if (isRoomOwner) {
     void updateLobbyPresence(onlineRoomCode, onlinePlayerCount >= 2 ? 'playing' : 'waiting', onlineHostId);
-  } else if (onlineSymbol === 'O') {
+  } else {
     void updateLobbyPresence('', 'in-room', onlineHostId);
   }
 
-  if (onlinePlayerCount >= 2 && onlineSymbol === 'X') {
+  if (onlinePlayerCount >= 2 && isRoomOwner) {
     void sendOnlineState();
-  } else if (onlinePlayerCount >= 2 && onlineSymbol === 'O') {
+  } else if (onlinePlayerCount >= 2 && onlinePlayerId !== onlineHostId) {
     void onlineChannel.send({
       type: 'broadcast',
       event: 'request-state',
@@ -1145,6 +1241,8 @@ function getOnlineSnapshot() {
     stats: roomStats,
     roundRecorded,
     startingPreference: roomStartingPreference,
+    symbol: onlineSymbol,
+    hostEpoch: onlineHostEpoch,
     chatMessages: [...chatMessages]
   };
 }
@@ -1180,6 +1278,8 @@ function restoreOnlineSnapshot() {
     roomStartingPreference = ['X', 'O', 'random'].includes(saved.startingPreference)
       ? saved.startingPreference
       : 'X';
+    onlineSymbol = saved.symbol === 'X' || saved.symbol === 'O' ? saved.symbol : onlineSymbol;
+    onlineHostEpoch = Math.max(0, Number(saved.hostEpoch) || 0);
     chatMessages = [];
     mergeChatMessages(saved.chatMessages);
     renderGameInsights();
@@ -1259,6 +1359,8 @@ async function closeOnlineRoom(clearUrl = true) {
 
   onlineRoomCode = '';
   onlineHostId = '';
+  onlineHostEpoch = 0;
+  onlineJoinedAt = 0;
   onlineSymbol = '';
   onlinePlayerCount = 0;
   onlineConnected = false;
@@ -1291,6 +1393,8 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
   await closeOnlineRoom(false);
   onlineRoomCode = normalizedCode;
   onlineHostId = isCreator ? onlinePlayerId : hostId;
+  onlineHostEpoch = 0;
+  onlineJoinedAt = Date.now();
   onlineSymbol = isCreator ? 'X' : '';
   onlinePlayerCount = 0;
   onlineConnected = false;
@@ -1335,13 +1439,13 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
       .on('broadcast', { event: 'chat-message' }, ({ payload }) => receiveChatMessage(payload))
       .on('broadcast', { event: 'room-notice' }, ({ payload }) => receiveRoomNotice(payload))
       .on('broadcast', { event: 'request-state' }, ({ payload }) => {
-        if (payload && payload.room === onlineRoomCode && onlineSymbol === 'X') void sendOnlineState();
+        if (payload && payload.room === onlineRoomCode && onlinePlayerId === onlineHostId) void sendOnlineState();
       })
       .on('presence', { event: 'sync' }, updateOnlinePresence)
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           onlineConnected = true;
-          await channel.track({ joinedAt: Date.now(), name: playerName });
+          await trackRoomPresence();
           leaveRoomButton.hidden = false;
           showGameScreen();
           if (isCreator) {

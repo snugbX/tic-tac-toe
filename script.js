@@ -1265,7 +1265,7 @@ if (rendererAvailable && requestedRoom) {
 }
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('./service-worker.js').catch((error) => {
+  navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).catch((error) => {
     console.warn('O modo offline não pôde ser ativado:', error);
   });
 }

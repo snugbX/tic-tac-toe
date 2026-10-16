@@ -1,6 +1,6 @@
 # Jogo da Velha — WebGL 2.0
 
-Jogo estático para navegador com renderização do tabuleiro em WebGL 2.0, IA Minimax com poda alfa-beta, níveis de dificuldade e modo para dois jogadores no mesmo dispositivo.
+Jogo para navegador com renderização do tabuleiro em WebGL 2.0, IA Minimax com poda alfa-beta, modo local e partidas online por convite usando Supabase Realtime.
 
 ## Abrir localmente
 
@@ -14,7 +14,15 @@ Na pasta do projeto, inicie um servidor estático local com `python -m http.serv
 
 O jogo usa caminhos relativos e funciona tanto em um domínio `github.io` quanto em um endereço de projeto, como `usuario.github.io/nome-do-repositorio/`.
 
+## Configurar partidas online
+
+1. Em `supabase-config.js`, informe a Project URL e a chave Publishable (ou anon) do projeto Supabase. Essa chave pública é usada pelo navegador; nunca coloque uma chave Secret ou `service_role` nesse arquivo.
+2. No Supabase, deixe **Realtime → Settings → Allow public access to channels** ativado.
+3. Publique o projeto no GitHub Pages. Escolha **Online com convite**, crie uma sala e envie o link ao outro jogador.
+
+As salas usam Broadcast e Presence, sem criar tabelas no banco. Os canais públicos permitem que qualquer pessoa com a chave pública do projeto envie e receba eventos; use o modo por convite para partidas casuais, não para torneios ou partidas com dados sensíveis.
+
 ## Observações
 
 - O navegador precisa oferecer WebGL 2.0 para desenhar o tabuleiro.
-- O modo online foi retirado: hospedagem estática no GitHub Pages não fornece, por si só, sincronização entre jogadores. O modo de dois jogadores funciona no mesmo dispositivo.
+- GitHub Pages hospeda os arquivos estáticos. A sincronização entre jogadores é feita pelo Supabase Realtime.

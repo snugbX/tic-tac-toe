@@ -27,7 +27,7 @@ jobs:
       - name: Preparar os arquivos do site
         run: |
           mkdir -p _site/sounds
-          cp index.html style.css script.js service-worker.js manifest.json icon-192.png icon-512.png _site/
+          cp index.html style.css script.js supabase-config.js service-worker.js manifest.json icon-192.png icon-512.png _site/
           cp sounds/click_human.wav sounds/click_ai.mp3 sounds/win.mp3 sounds/lose.mp3 sounds/draw.mp3 _site/sounds/
 
       - name: Enviar artefato do Pages

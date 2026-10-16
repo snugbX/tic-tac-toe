@@ -142,6 +142,121 @@ h1 {
   cursor: pointer;
 }
 
+.online-lobby {
+  display: grid;
+  gap: 16px;
+  margin: -8px 0 24px;
+  padding: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow);
+}
+
+.lobby-heading h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.lobby-heading p,
+.connection-status {
+  margin: 6px 0 0;
+  color: var(--muted-color);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.lobby-actions {
+  display: grid;
+  grid-template-columns: minmax(130px, auto) minmax(180px, 1fr) minmax(130px, auto);
+  align-items: end;
+  gap: 10px;
+}
+
+.room-code-field,
+.room-share > label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted-color);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.room-code-field input,
+.room-share input {
+  width: 100%;
+  min-width: 0;
+  min-height: 43px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  color: var(--text-color);
+  font: inherit;
+}
+
+.room-code-field input {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lobby-button,
+.leave-room-button {
+  min-height: 43px;
+  padding: 0 15px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.lobby-button:hover,
+.leave-room-button:hover {
+  border-color: var(--accent-color);
+}
+
+.lobby-button.primary {
+  border-color: var(--accent-color);
+  background: var(--accent-color);
+  color: #fff;
+}
+
+.room-share {
+  display: grid;
+  gap: 7px;
+}
+
+.share-row {
+  display: flex;
+  gap: 10px;
+}
+
+.share-row input {
+  flex: 1;
+}
+
+.online-room-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.online-room-footer .connection-status {
+  margin: 0;
+}
+
+.leave-room-button {
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font-size: 0.82rem;
+}
+
 .game-panel {
   display: flex;
   align-items: center;
@@ -263,6 +378,15 @@ h1 {
   .board {
     width: min(100%, 390px);
   }
+
+  .lobby-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .room-code-field {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
 }
 
 @media (max-width: 430px) {
@@ -283,5 +407,15 @@ h1 {
 
   .game-panel {
     padding: 21px 12px 18px;
+  }
+
+  .share-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .online-room-footer {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

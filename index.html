@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Jogo da velha com WebGL 2.0, IA Minimax e modo para dois jogadores." />
+    <meta name="description" content="Jogo da velha com WebGL 2.0, IA Minimax e partidas online." />
     <meta name="theme-color" content="#f4f6fb" />
     <title>Jogo da Velha — WebGL 2.0</title>
     <link rel="icon" href="icon-192.png" type="image/png" />
@@ -16,7 +16,7 @@
         <div>
           <p class="eyebrow">Jogo de estratégia</p>
           <h1>Jogo da Velha</h1>
-          <p class="intro">Desafie a IA ou jogue com alguém ao seu lado.</p>
+          <p class="intro">Desafie a IA, jogue no mesmo dispositivo ou convide alguém online.</p>
         </div>
         <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">
           Tema escuro
@@ -29,16 +29,17 @@
           <select id="mode">
             <option value="ai">Contra a IA</option>
             <option value="local">Dois jogadores</option>
+            <option value="online">Online com convite</option>
           </select>
         </label>
-        <label>
+        <label id="symbolField">
           Seu símbolo
           <select id="symbol">
             <option value="X">X</option>
             <option value="O">O</option>
           </select>
         </label>
-        <label>
+        <label id="starterField">
           Quem começa?
           <select id="starter">
             <option value="human">Você / Jogador 1</option>
@@ -53,6 +54,34 @@
             <option value="hard">Difícil</option>
           </select>
         </label>
+      </section>
+
+      <section class="online-lobby" id="onlineLobby" aria-label="Partida online" hidden>
+        <div class="lobby-heading">
+          <div>
+            <h2>Jogue com alguém à distância</h2>
+            <p>Crie uma sala e compartilhe o link, ou entre com um código.</p>
+          </div>
+        </div>
+        <div class="lobby-actions">
+          <button class="lobby-button primary" id="createRoomButton" type="button">Criar sala</button>
+          <label class="room-code-field" for="roomCode">
+            Código da sala
+            <input id="roomCode" type="text" maxlength="16" autocomplete="off" autocapitalize="characters" placeholder="Ex.: AB12CD34" />
+          </label>
+          <button class="lobby-button" id="joinRoomButton" type="button">Entrar na sala</button>
+        </div>
+        <div class="room-share" id="roomShare" hidden>
+          <label for="roomLink">Link para convidar</label>
+          <div class="share-row">
+            <input id="roomLink" type="text" readonly />
+            <button class="lobby-button" id="copyRoomLinkButton" type="button">Copiar link</button>
+          </div>
+        </div>
+        <div class="online-room-footer">
+          <p class="connection-status" id="connectionStatus" role="status" aria-live="polite">Selecione uma opção para começar.</p>
+          <button class="leave-room-button" id="leaveRoomButton" type="button" hidden>Sair da sala</button>
+        </div>
       </section>
 
       <section class="game-panel" aria-label="Partida de jogo da velha">
@@ -79,6 +108,7 @@
 
       <footer class="page-footer">Renderizado com WebGL 2.0</footer>
     </main>
+    <script src="supabase-config.js" defer></script>
     <script src="script.js" defer></script>
   </body>
 </html>

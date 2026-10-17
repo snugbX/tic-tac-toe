@@ -8,7 +8,7 @@
     <title>Jogo da Velha — WebGL 2.0</title>
     <link rel="icon" href="icon-192.png" type="image/png" />
     <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" href="style.css?v=12" />
+    <link rel="stylesheet" href="style.css?v=13" />
   </head>
   <body class="dark">
     <main class="app-shell">
@@ -56,7 +56,15 @@
               <option value="O">O começa</option>
               <option value="random">Aleatório</option>
             </select>
-            <span class="field-hint">Na sala online, vale a escolha de quem criou a sala.</span>
+            <span class="field-hint">Na sala sem desafios, vale a escolha de quem criou a sala. Com desafios, os jogadores alternam quem começa.</span>
+          </label>
+          <label id="challengeModeField" hidden>
+            Desafios da sala
+            <select id="challengeMode">
+              <option value="off">Sem desafios</option>
+              <option value="on">Com desafios</option>
+            </select>
+            <span class="field-hint">Ao criar a sala, escolha se haverá desafios. Cada jogador pode usar um após ambos jogarem uma vez.</span>
           </label>
           <label id="difficultyField">
             Dificuldade
@@ -145,6 +153,24 @@
             <span class="join-alert-icon" aria-hidden="true">✦</span>
             <span id="playerJoinAlertText"></span>
           </p>
+          <section class="challenge-panel" id="challengePanel" aria-label="Desafio da partida" hidden>
+            <div class="challenge-heading">
+              <span class="challenge-icon" aria-hidden="true">?</span>
+              <div>
+                <h2>Desafio relâmpago</h2>
+                <p>Conhecimentos gerais</p>
+              </div>
+            </div>
+            <p class="challenge-status" id="challengeStatus" role="status" aria-live="polite"></p>
+            <button class="challenge-start-button" id="startChallengeButton" type="button" hidden>
+              Desafiar adversário
+            </button>
+            <div class="challenge-question-area" id="challengeQuestionArea" hidden>
+              <p class="challenge-question" id="challengeQuestion"></p>
+              <div class="challenge-options" id="challengeOptions"></div>
+            </div>
+            <p class="challenge-result" id="challengeResult" hidden></p>
+          </section>
           <section class="chat-panel" id="chatPanel" aria-label="Chat da sala online" hidden>
             <div class="chat-heading">
               <div>
@@ -225,6 +251,6 @@
       <footer class="page-footer">Renderizado com WebGL 2.0</footer>
     </main>
     <script src="supabase-config.js" defer></script>
-    <script src="script.js?v=12" defer></script>
+    <script src="script.js?v=13" defer></script>
   </body>
 </html>

@@ -54,6 +54,15 @@ const swapInvitationPanel = document.getElementById('swapInvitationPanel');
 const swapInvitationText = document.getElementById('swapInvitationText');
 const acceptSwapButton = document.getElementById('acceptSwapButton');
 const rejectSwapButton = document.getElementById('rejectSwapButton');
+const challengeModeField = document.getElementById('challengeModeField');
+const challengeModeSelect = document.getElementById('challengeMode');
+const challengePanel = document.getElementById('challengePanel');
+const challengeStatus = document.getElementById('challengeStatus');
+const startChallengeButton = document.getElementById('startChallengeButton');
+const challengeQuestionArea = document.getElementById('challengeQuestionArea');
+const challengeQuestionElement = document.getElementById('challengeQuestion');
+const challengeOptions = document.getElementById('challengeOptions');
+const challengeResult = document.getElementById('challengeResult');
 const roomBadge = document.getElementById('roomBadge');
 const playerJoinAlert = document.getElementById('playerJoinAlert');
 const playerJoinAlertText = document.getElementById('playerJoinAlertText');
@@ -73,6 +82,25 @@ const winCombos = [
   [0, 1, 2], [3, 4, 5], [6, 7, 8],
   [0, 3, 6], [1, 4, 7], [2, 5, 8],
   [0, 4, 8], [2, 4, 6]
+];
+
+const challengeQuestions = [
+  { id: 'capital-brasil', question: 'Qual é a capital do Brasil?', options: ['Rio de Janeiro', 'Brasília', 'Salvador', 'São Paulo'], answer: 1 },
+  { id: 'planeta-vermelho', question: 'Qual planeta é conhecido como Planeta Vermelho?', options: ['Vênus', 'Marte', 'Júpiter', 'Mercúrio'], answer: 1 },
+  { id: 'multiplicacao-7-8', question: 'Quanto é 7 × 8?', options: ['54', '56', '58', '64'], answer: 1 },
+  { id: 'maior-oceano', question: 'Qual é o maior oceano da Terra?', options: ['Atlântico', 'Índico', 'Pacífico', 'Ártico'], answer: 2 },
+  { id: 'dom-quixote', question: 'Quem escreveu “Dom Quixote”?', options: ['José de Alencar', 'Miguel de Cervantes', 'Machado de Assis', 'Eça de Queirós'], answer: 1 },
+  { id: 'moeda-japao', question: 'Qual é a moeda oficial do Japão?', options: ['Won', 'Yuan', 'Iene', 'Rupia'], answer: 2 },
+  { id: 'simbolo-ouro', question: 'Qual é o símbolo químico do ouro?', options: ['Ag', 'Au', 'Fe', 'O'], answer: 1 },
+  { id: 'independencia-brasil', question: 'Em que ano o Brasil declarou sua independência?', options: ['1500', '1789', '1822', '1889'], answer: 2 },
+  { id: 'mamifero-marinho', question: 'Qual destes animais é um mamífero?', options: ['Tubarão', 'Polvo', 'Golfinho', 'Atum'], answer: 2 },
+  { id: 'satellite-terra', question: 'Qual é o satélite natural da Terra?', options: ['Fobos', 'Lua', 'Europa', 'Titã'], answer: 1 },
+  { id: 'egito-continente', question: 'Em qual continente fica o Egito?', options: ['Ásia', 'África', 'Europa', 'Oceania'], answer: 1 },
+  { id: 'idioma-portugal', question: 'Qual idioma é falado oficialmente em Portugal?', options: ['Espanhol', 'Italiano', 'Português', 'Francês'], answer: 2 },
+  { id: 'agua-ebulicao', question: 'A que temperatura a água ferve ao nível do mar?', options: ['0 °C', '50 °C', '100 °C', '150 °C'], answer: 2 },
+  { id: 'lados-triangulo', question: 'Quantos lados tem um triângulo?', options: ['2', '3', '4', '5'], answer: 1 },
+  { id: 'menor-primo', question: 'Qual é o menor número primo?', options: ['0', '1', '2', '3'], answer: 2 },
+  { id: 'dias-semana', question: 'Quantos dias tem uma semana?', options: ['5', '6', '7', '8'], answer: 2 }
 ];
 
 let gl;
@@ -112,6 +140,14 @@ let onlineSpectator = false;
 let onlineGameRevision = 0;
 let playerName = loadSavedPlayerName();
 let roomStartingPreference = 'X';
+let roomChallengeEnabled = false;
+let challengeNextStarter = '';
+let challengeUsedBy = [];
+let challengeQuestionIdsUsed = [];
+let activeChallenge = null;
+let onlineBonusTurnFor = '';
+let lastChallengeResult = '';
+let challengeAnswerPending = false;
 let localStats = loadGameStats();
 let roomStats = createEmptyStats();
 let moveHistory = [];
@@ -327,7 +363,7 @@ function resizeCanvas() {
 
 function updateCellButtons() {
   const onlineTurnBlocked = modeSelect.value === 'online'
-    && (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator || onlineSymbol !== currentPlayer);
+    && (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator || onlineSymbol !== currentPlayer || Boolean(activeChallenge));
 
   cells.forEach((cell, index) => {
     const value = board[index];
@@ -337,7 +373,7 @@ function updateCellButtons() {
   });
 
   if (modeSelect.value === 'online') {
-    const playerActionsBlocked = !onlineConnected || onlinePlayerCount < 2 || onlineSpectator;
+    const playerActionsBlocked = !onlineConnected || onlinePlayerCount < 2 || onlineSpectator || Boolean(activeChallenge);
     resetButton.disabled = playerActionsBlocked;
     resetStatsButton.disabled = playerActionsBlocked;
   } else {
@@ -459,6 +495,94 @@ function resolveStartingSymbol(preference = starterSelect.value) {
   return preference === 'O' ? 'O' : 'X';
 }
 
+function haveBothPlayersMoved() {
+  return moveHistory.some((move) => move.symbol === 'X')
+    && moveHistory.some((move) => move.symbol === 'O');
+}
+
+function normalizeActiveChallenge(value) {
+  if (!value || typeof value !== 'object' || !value.id) return null;
+  const options = Array.isArray(value.options) ? value.options.map((option) => String(option).slice(0, 120)) : [];
+  const correctIndex = Number(value.correctIndex);
+  if (options.length !== 4 || !Number.isInteger(correctIndex) || correctIndex < 0 || correctIndex > 3) return null;
+  if (!['X', 'O'].includes(value.challengerSymbol)) return null;
+  return {
+    id: String(value.id).slice(0, 80),
+    questionId: String(value.questionId || '').slice(0, 80),
+    challengerId: String(value.challengerId || '').slice(0, 80),
+    challengerName: String(value.challengerName || 'Jogador').slice(0, 20),
+    challengerSymbol: value.challengerSymbol,
+    targetId: String(value.targetId || '').slice(0, 80),
+    targetName: String(value.targetName || 'Adversário').slice(0, 20),
+    question: String(value.question || '').slice(0, 240),
+    options,
+    correctIndex,
+    startedAt: Number(value.startedAt) || Date.now()
+  };
+}
+
+function renderChallenge() {
+  const showPanel = modeSelect.value === 'online' && Boolean(onlineRoomCode) && roomChallengeEnabled;
+  challengePanel.hidden = !showPanel;
+  if (!showPanel) return;
+
+  challengeOptions.replaceChildren();
+  challengeQuestionArea.hidden = true;
+  challengeResult.hidden = !lastChallengeResult;
+  challengeResult.textContent = lastChallengeResult;
+
+  if (activeChallenge) {
+    challengeResult.hidden = true;
+    if (onlinePlayerId === activeChallenge.targetId) {
+      challengeStatus.textContent = challengeAnswerPending
+        ? 'Sua resposta está sendo enviada…'
+        : 'É a sua vez de responder. Escolha uma alternativa:';
+      challengeQuestionElement.textContent = activeChallenge.question;
+      challengeQuestionArea.hidden = false;
+      activeChallenge.options.forEach((option, index) => {
+        const answerButton = document.createElement('button');
+        answerButton.className = 'challenge-option';
+        answerButton.type = 'button';
+        answerButton.disabled = challengeAnswerPending;
+        answerButton.textContent = String.fromCharCode(65 + index) + '. ' + option;
+        answerButton.addEventListener('click', () => { void answerOnlineChallenge(index); });
+        challengeOptions.append(answerButton);
+      });
+    } else if (onlinePlayerId === activeChallenge.challengerId) {
+      challengeStatus.textContent = 'Você desafiou ' + activeChallenge.targetName + '. Aguardando a resposta.';
+    } else {
+      challengeStatus.textContent = activeChallenge.challengerName + ' desafiou '
+        + activeChallenge.targetName + '. Aguardando a resposta.';
+    }
+    startChallengeButton.hidden = true;
+    return;
+  }
+
+  const canChallenge = onlineConnected && onlineRole === 'player' && !onlineSpectator
+    && !gameOver && haveBothPlayersMoved() && onlineSymbol === currentPlayer
+    && !challengeUsedBy.includes(onlinePlayerId);
+  startChallengeButton.hidden = !canChallenge;
+  startChallengeButton.disabled = !onlineConnected || challengeAnswerPending;
+
+  if (lastChallengeResult) {
+    challengeStatus.textContent = onlineSymbol === currentPlayer && canChallenge
+      ? 'Sua vez. O resultado do desafio está logo abaixo.'
+      : 'A partida continua.';
+  } else if (onlineSpectator) {
+    challengeStatus.textContent = 'Você acompanha os desafios junto com a partida.';
+  } else if (challengeUsedBy.includes(onlinePlayerId)) {
+    challengeStatus.textContent = 'Você já usou seu desafio nesta partida.';
+  } else if (!haveBothPlayersMoved()) {
+    challengeStatus.textContent = 'O desafio libera depois que X e O fizerem uma jogada.';
+  } else if (onlineRole !== 'player') {
+    challengeStatus.textContent = 'Aguardando os jogadores da sala.';
+  } else if (onlineSymbol !== currentPlayer) {
+    challengeStatus.textContent = 'O desafio poderá ser ativado na sua vez.';
+  } else {
+    challengeStatus.textContent = 'Use seu desafio uma vez nesta partida para tentar ganhar uma jogada extra.';
+  }
+}
+
 function updateSetupControls() {
   const isOnline = modeSelect.value === 'online';
   const isAiMode = modeSelect.value === 'ai';
@@ -466,6 +590,7 @@ function updateSetupControls() {
   symbolField.hidden = !isAiMode;
   difficultyField.hidden = !isAiMode;
   starterField.hidden = false;
+  challengeModeField.hidden = !isOnline;
   onlineLobby.hidden = !isOnline;
   localSetupActions.hidden = isOnline;
 }
@@ -596,7 +721,7 @@ function renderGameInsights() {
   });
 
   resetStatsButton.disabled = modeSelect.value === 'online'
-    && (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator);
+    && (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator || Boolean(activeChallenge));
 }
 
 function recordGameResult() {
@@ -629,7 +754,7 @@ function recordGameResult() {
 
 async function resetGameStats() {
   if (modeSelect.value === 'online') {
-    if (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator) return;
+    if (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator || activeChallenge) return;
     roomStats = createEmptyStats();
     onlineGameRevision += 1;
     saveOnlineSnapshot();
@@ -1118,7 +1243,7 @@ function renderOnlinePlayers(members = getOnlineMembers()) {
     action.textContent = pendingSwapRequest && pendingSwapRequest.targetId === spectator.id
       ? 'Aguardando…' : 'Solicitar troca';
     action.disabled = !onlineConnected || onlineSpectator || onlineRole !== 'player'
-      || Boolean(pendingSwapRequest) || Boolean(incomingSwapRequest);
+      || Boolean(pendingSwapRequest) || Boolean(incomingSwapRequest) || Boolean(activeChallenge);
     action.setAttribute('aria-label', 'Solicitar troca de lugar com ' + (spectator.name || 'espectador'));
     action.addEventListener('click', () => { void requestPlayerSwap(spectator); });
     item.append(identity, action);
@@ -1179,7 +1304,7 @@ function receiveChatMessage(payload) {
 
 async function requestPlayerSwap(spectator) {
   if (!onlineConnected || !onlineChannel || onlineRole !== 'player' || onlineSpectator
-    || !['X', 'O'].includes(onlineSymbol) || pendingSwapRequest || incomingSwapRequest) return;
+    || !['X', 'O'].includes(onlineSymbol) || pendingSwapRequest || incomingSwapRequest || activeChallenge) return;
   const currentSpectator = getOnlineMembers().find((member) => member.id === spectator.id);
   if (!currentSpectator || currentSpectator.role !== 'spectator') return;
 
@@ -1252,7 +1377,7 @@ function receiveSwapRequest(payload) {
 
 async function acceptPlayerSwap() {
   const request = incomingSwapRequest;
-  if (!request || !onlineConnected || !onlineChannel || onlineRole !== 'spectator'
+  if (!request || !onlineConnected || !onlineChannel || onlineRole !== 'spectator' || activeChallenge
     || Date.now() - request.sentAt > 60000) {
     if (request && Date.now() - request.sentAt > 60000) {
       incomingSwapRequest = null;
@@ -1361,6 +1486,169 @@ function receiveSwapCompletion(payload) {
   void applySwapCompletion(payload);
 }
 
+async function startOnlineChallenge() {
+  if (!onlineConnected || !onlineChannel || !roomChallengeEnabled || onlineRole !== 'player'
+    || onlineSpectator || gameOver || activeChallenge || pendingSwapRequest || !haveBothPlayersMoved()
+    || onlineSymbol !== currentPlayer || challengeUsedBy.includes(onlinePlayerId)) return;
+  const members = getOnlineMembers();
+  const opponent = members.find((member) => member.role === 'player'
+    && member.symbol === oppositeSymbol(onlineSymbol));
+  if (!opponent) {
+    challengeStatus.textContent = 'O adversário não está conectado para responder.';
+    return;
+  }
+
+  const availableQuestions = challengeQuestions.filter((question) => !challengeQuestionIdsUsed.includes(question.id));
+  const questionPool = availableQuestions.length ? availableQuestions : challengeQuestions;
+  const question = questionPool[Math.floor(Math.random() * questionPool.length)];
+  const challenge = {
+    room: onlineRoomCode,
+    id: createMessageId(),
+    questionId: question.id,
+    challengerId: onlinePlayerId,
+    challengerName: playerName,
+    challengerSymbol: onlineSymbol,
+    targetId: opponent.id,
+    targetName: opponent.name || 'Adversário',
+    startedAt: Date.now()
+  };
+
+  startChallengeButton.disabled = true;
+  challengeStatus.textContent = 'Enviando o desafio…';
+  try {
+    const result = await onlineChannel.send({ type: 'broadcast', event: 'challenge-start', payload: challenge });
+    if (result !== 'ok') {
+      challengeStatus.textContent = 'Não foi possível enviar o desafio. Tente novamente.';
+      renderChallenge();
+      return;
+    }
+    await applyChallengeStart(challenge);
+  } catch (error) {
+    challengeStatus.textContent = 'Não foi possível enviar o desafio. Verifique sua conexão.';
+    renderChallenge();
+  }
+}
+
+async function applyChallengeStart(payload) {
+  if (!payload || payload.room !== onlineRoomCode || !roomChallengeEnabled || gameOver) return;
+  if (activeChallenge && activeChallenge.id === payload.id) return;
+  if (activeChallenge || !payload.id || challengeUsedBy.includes(payload.challengerId)
+    || !haveBothPlayersMoved()) return;
+  const question = challengeQuestions.find((entry) => entry.id === payload.questionId);
+  if (!question || !['X', 'O'].includes(payload.challengerSymbol)
+    || currentPlayer !== payload.challengerSymbol) return;
+
+  const members = getOnlineMembers();
+  const challenger = members.find((member) => member.id === payload.challengerId);
+  const target = members.find((member) => member.id === payload.targetId);
+  if (!challenger || challenger.role !== 'player' || challenger.symbol !== payload.challengerSymbol
+    || !target || target.role !== 'player' || target.symbol !== oppositeSymbol(payload.challengerSymbol)) return;
+
+  activeChallenge = normalizeActiveChallenge({
+    id: payload.id,
+    questionId: question.id,
+    challengerId: challenger.id,
+    challengerName: challenger.name || payload.challengerName || 'Jogador',
+    challengerSymbol: challenger.symbol,
+    targetId: target.id,
+    targetName: target.name || payload.targetName || 'Adversário',
+    question: question.question,
+    options: question.options,
+    correctIndex: question.answer,
+    startedAt: payload.startedAt
+  });
+  if (!activeChallenge) return;
+  challengeUsedBy = [...new Set([...challengeUsedBy, challenger.id])];
+  challengeQuestionIdsUsed = [...new Set([...challengeQuestionIdsUsed, question.id])];
+  lastChallengeResult = '';
+  challengeAnswerPending = false;
+  onlineGameRevision += 1;
+  saveOnlineSnapshot();
+  updateOnlineStatus();
+  updateCellButtons();
+  if (onlinePlayerId === onlineHostId) void sendOnlineState();
+}
+
+async function answerOnlineChallenge(answerIndex) {
+  const challenge = activeChallenge;
+  if (!challenge || onlinePlayerId !== challenge.targetId || !onlineConnected || !onlineChannel
+    || challengeAnswerPending || !Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex > 3) return;
+  challengeAnswerPending = true;
+  renderChallenge();
+  const answer = {
+    room: onlineRoomCode,
+    challengeId: challenge.id,
+    responderId: onlinePlayerId,
+    answerIndex
+  };
+  try {
+    const result = await onlineChannel.send({ type: 'broadcast', event: 'challenge-answer', payload: answer });
+    if (result !== 'ok') {
+      challengeAnswerPending = false;
+      challengeStatus.textContent = 'A resposta não foi enviada. Escolha novamente.';
+      renderChallenge();
+      return;
+    }
+    if (onlinePlayerId === onlineHostId) await processChallengeAnswer(answer);
+  } catch (error) {
+    challengeAnswerPending = false;
+    challengeStatus.textContent = 'A resposta não foi enviada. Verifique sua conexão.';
+    renderChallenge();
+  }
+}
+
+function receiveChallengeAnswer(payload) {
+  if (payload && payload.room === onlineRoomCode && onlinePlayerId === onlineHostId) {
+    void processChallengeAnswer(payload);
+  }
+}
+
+async function processChallengeAnswer(payload) {
+  const challenge = activeChallenge;
+  if (!challenge || onlinePlayerId !== onlineHostId || payload.challengeId !== challenge.id
+    || payload.responderId !== challenge.targetId || !Number.isInteger(payload.answerIndex)
+    || payload.answerIndex < 0 || payload.answerIndex > 3) return;
+  const result = {
+    room: onlineRoomCode,
+    challengeId: challenge.id,
+    responderId: challenge.targetId,
+    answerIndex: payload.answerIndex,
+    resolvedAt: Date.now()
+  };
+  try {
+    const sent = await onlineChannel.send({ type: 'broadcast', event: 'challenge-result', payload: result });
+    if (sent !== 'ok') return;
+    await applyChallengeResult(result);
+  } catch (error) {
+    console.warn('Não foi possível divulgar o resultado do desafio:', error);
+  }
+}
+
+async function applyChallengeResult(payload) {
+  if (!payload || payload.room !== onlineRoomCode || !activeChallenge
+    || payload.challengeId !== activeChallenge.id || payload.responderId !== activeChallenge.targetId
+    || !Number.isInteger(payload.answerIndex) || payload.answerIndex < 0 || payload.answerIndex > 3) return;
+  const resolvedChallenge = activeChallenge;
+  const correct = payload.answerIndex === resolvedChallenge.correctIndex;
+  const correctAnswer = resolvedChallenge.options[resolvedChallenge.correctIndex];
+  activeChallenge = null;
+  challengeAnswerPending = false;
+  onlineBonusTurnFor = correct ? '' : resolvedChallenge.challengerSymbol;
+  lastChallengeResult = correct
+    ? resolvedChallenge.targetName + ' acertou! ' + resolvedChallenge.challengerName + ' segue com a jogada.'
+    : resolvedChallenge.targetName + ' errou e perdeu a vez. Resposta: ' + correctAnswer + '. '
+      + resolvedChallenge.challengerName + ' ganhou uma jogada extra!';
+  onlineGameRevision += 1;
+  saveOnlineSnapshot();
+  updateOnlineStatus();
+  updateCellButtons();
+  if (onlinePlayerId === onlineHostId) void sendOnlineState();
+}
+
+function receiveChallengeResult(payload) {
+  void applyChallengeResult(payload);
+}
+
 function updateOnlineStatus() {
   if (modeSelect.value !== 'online') return;
 
@@ -1370,6 +1658,7 @@ function updateOnlineStatus() {
     statusElement.textContent = connectionStatus.textContent;
     renderOnlinePlayers();
     renderChat();
+    renderChallenge();
     updateCellButtons();
     return;
   }
@@ -1396,6 +1685,7 @@ function updateOnlineStatus() {
   statusElement.textContent = connectionStatus.textContent;
   renderOnlinePlayers();
   renderChat();
+  renderChallenge();
   updateCellButtons();
 }
 
@@ -1445,6 +1735,21 @@ function updateOnlinePresence() {
     onlineSymbol = 'X';
   } else if (!onlineSymbol && currentOwner && currentOwner.role !== 'spectator' && currentOwner.symbol) {
     onlineSymbol = oppositeSymbol(currentOwner.symbol);
+  }
+
+  if (activeChallenge && (!memberIds.includes(activeChallenge.challengerId)
+    || !memberIds.includes(activeChallenge.targetId))) {
+    const challengerStillHere = memberIds.includes(activeChallenge.challengerId);
+    const targetStillHere = members.find((member) => member.id === activeChallenge.targetId);
+    if (!challengerStillHere && targetStillHere && ['X', 'O'].includes(targetStillHere.symbol)) {
+      currentPlayer = targetStillHere.symbol;
+    }
+    activeChallenge = null;
+    challengeAnswerPending = false;
+    onlineBonusTurnFor = '';
+    lastChallengeResult = 'Desafio cancelado porque um jogador saiu da sala.';
+    onlineGameRevision += 1;
+    saveOnlineSnapshot();
   }
 
   previousPresenceMembers = new Map(members.map((member) => [member.id, member]));
@@ -1524,6 +1829,13 @@ function getOnlineSnapshot() {
     stats: roomStats,
     roundRecorded,
     startingPreference: roomStartingPreference,
+    challengeEnabled: roomChallengeEnabled,
+    challengeNextStarter,
+    challengeUsedBy: [...challengeUsedBy],
+    challengeQuestionIdsUsed: [...challengeQuestionIdsUsed],
+    activeChallenge,
+    bonusTurnFor: onlineBonusTurnFor,
+    lastChallengeResult,
     symbol: onlineSymbol,
     hostEpoch: onlineHostEpoch,
     chatMessages: [...chatMessages]
@@ -1561,6 +1873,17 @@ function restoreOnlineSnapshot() {
     roomStartingPreference = ['X', 'O', 'random'].includes(saved.startingPreference)
       ? saved.startingPreference
       : 'X';
+    roomChallengeEnabled = Boolean(saved.challengeEnabled);
+    challengeNextStarter = ['X', 'O'].includes(saved.challengeNextStarter) ? saved.challengeNextStarter : '';
+    challengeUsedBy = Array.isArray(saved.challengeUsedBy)
+      ? [...new Set(saved.challengeUsedBy.map((id) => String(id).slice(0, 80)))].slice(0, 20)
+      : [];
+    challengeQuestionIdsUsed = Array.isArray(saved.challengeQuestionIdsUsed)
+      ? [...new Set(saved.challengeQuestionIdsUsed.map((id) => String(id).slice(0, 80)))].slice(0, challengeQuestions.length)
+      : [];
+    activeChallenge = normalizeActiveChallenge(saved.activeChallenge);
+    onlineBonusTurnFor = ['X', 'O'].includes(saved.bonusTurnFor) ? saved.bonusTurnFor : '';
+    lastChallengeResult = String(saved.lastChallengeResult || '').slice(0, 240);
     onlineSymbol = saved.symbol === 'X' || saved.symbol === 'O' ? saved.symbol : onlineSymbol;
     onlineHostEpoch = Math.max(0, Number(saved.hostEpoch) || 0);
     chatMessages = [];
@@ -1610,6 +1933,17 @@ function receiveOnlineState(payload) {
   roomStartingPreference = ['X', 'O', 'random'].includes(payload.startingPreference)
     ? payload.startingPreference
     : roomStartingPreference;
+  roomChallengeEnabled = Boolean(payload.challengeEnabled);
+  challengeNextStarter = ['X', 'O'].includes(payload.challengeNextStarter) ? payload.challengeNextStarter : '';
+  challengeUsedBy = Array.isArray(payload.challengeUsedBy)
+    ? [...new Set(payload.challengeUsedBy.map((id) => String(id).slice(0, 80)))].slice(0, 20)
+    : [];
+  challengeQuestionIdsUsed = Array.isArray(payload.challengeQuestionIdsUsed)
+    ? [...new Set(payload.challengeQuestionIdsUsed.map((id) => String(id).slice(0, 80)))].slice(0, challengeQuestions.length)
+    : [];
+  activeChallenge = normalizeActiveChallenge(payload.activeChallenge);
+  onlineBonusTurnFor = ['X', 'O'].includes(payload.bonusTurnFor) ? payload.bonusTurnFor : '';
+  lastChallengeResult = String(payload.lastChallengeResult || '').slice(0, 240);
   mergeChatMessages(payload.chatMessages);
   updateOnlineStatus();
 
@@ -1651,6 +1985,14 @@ async function closeOnlineRoom(clearUrl = true) {
   onlineSpectator = false;
   onlineGameRevision = 0;
   roomStartingPreference = 'X';
+  roomChallengeEnabled = false;
+  challengeNextStarter = '';
+  challengeUsedBy = [];
+  challengeQuestionIdsUsed = [];
+  activeChallenge = null;
+  onlineBonusTurnFor = '';
+  lastChallengeResult = '';
+  challengeAnswerPending = false;
   roomStats = createEmptyStats();
   moveHistory = [];
   roundRecorded = false;
@@ -1669,6 +2011,7 @@ async function closeOnlineRoom(clearUrl = true) {
   roomSpectators.hidden = true;
   swapStatus.hidden = true;
   swapInvitationPanel.hidden = true;
+  challengePanel.hidden = true;
   playerJoinAlert.hidden = true;
   leaveRoomButton.hidden = true;
   if (clearUrl) updateRoomUrl('', '');
@@ -1689,6 +2032,14 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
   onlineJoinedAt = Date.now();
   onlineSymbol = isCreator ? 'X' : '';
   onlineRole = isCreator ? 'player' : '';
+  roomChallengeEnabled = false;
+  challengeNextStarter = '';
+  challengeUsedBy = [];
+  challengeQuestionIdsUsed = [];
+  activeChallenge = null;
+  onlineBonusTurnFor = '';
+  lastChallengeResult = '';
+  challengeAnswerPending = false;
   onlinePlayerCount = 0;
   onlineConnected = false;
   onlineSpectator = false;
@@ -1704,6 +2055,8 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
     board = Array(9).fill('');
     roomStartingPreference = starterSelect.value;
     currentPlayer = resolveStartingSymbol(roomStartingPreference);
+    roomChallengeEnabled = challengeModeSelect.value === 'on';
+    challengeNextStarter = roomChallengeEnabled ? oppositeSymbol(currentPlayer) : '';
     gameOver = false;
     roomStats = createEmptyStats();
     moveHistory = [];
@@ -1736,6 +2089,9 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
       .on('broadcast', { event: 'swap-request' }, ({ payload }) => receiveSwapRequest(payload))
       .on('broadcast', { event: 'swap-reject' }, ({ payload }) => receiveSwapReject(payload))
       .on('broadcast', { event: 'swap-complete' }, ({ payload }) => receiveSwapCompletion(payload))
+      .on('broadcast', { event: 'challenge-start' }, ({ payload }) => { void applyChallengeStart(payload); })
+      .on('broadcast', { event: 'challenge-answer' }, ({ payload }) => receiveChallengeAnswer(payload))
+      .on('broadcast', { event: 'challenge-result' }, ({ payload }) => receiveChallengeResult(payload))
       .on('broadcast', { event: 'request-state' }, ({ payload }) => {
         if (payload && payload.room === onlineRoomCode && onlinePlayerId === onlineHostId) void sendOnlineState();
       })
@@ -1748,7 +2104,10 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
           showGameScreen();
           if (isCreator) {
             roomShare.hidden = false;
-            if (!chatMessages.length) addSystemMessage('Sala criada. Compartilhe o convite para começar a conversar.');
+            if (!chatMessages.length) {
+              addSystemMessage('Sala criada ' + (roomChallengeEnabled ? 'com desafios' : 'sem desafios')
+                + '. Compartilhe o convite para começar.');
+            }
             const inviteUrl = new URL(window.location.href);
             inviteUrl.searchParams.set('room', normalizedCode);
             inviteUrl.searchParams.set('host', onlinePlayerId);
@@ -1780,11 +2139,27 @@ async function resetOnlineGame() {
     return;
   }
 
+  if (activeChallenge) {
+    connectionStatus.textContent = 'Resolva o desafio antes de iniciar outra partida.';
+    return;
+  }
+
   board = Array(9).fill('');
-  currentPlayer = resolveStartingSymbol(roomStartingPreference);
+  if (roomChallengeEnabled) {
+    currentPlayer = challengeNextStarter || resolveStartingSymbol(roomStartingPreference);
+    challengeNextStarter = oppositeSymbol(currentPlayer);
+  } else {
+    currentPlayer = resolveStartingSymbol(roomStartingPreference);
+  }
   gameOver = false;
   moveHistory = [];
   roundRecorded = false;
+  challengeUsedBy = [];
+  challengeQuestionIdsUsed = [];
+  activeChallenge = null;
+  onlineBonusTurnFor = '';
+  lastChallengeResult = '';
+  challengeAnswerPending = false;
   onlineGameRevision += 1;
   statusElement.textContent = '';
   updateOnlineStatus();
@@ -1832,12 +2207,19 @@ function startGame() {
 
 function handleCellClick(event) {
   const index = Number(event.currentTarget.dataset.index);
-  if (gameOver || aiThinking || board[index] || (modeSelect.value === 'ai' && currentPlayer !== human)) return;
+  if (gameOver || aiThinking || activeChallenge || board[index] || (modeSelect.value === 'ai' && currentPlayer !== human)) return;
 
   if (modeSelect.value === 'online') {
-    if (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator || onlineSymbol !== currentPlayer) return;
+    if (!onlineConnected || onlinePlayerCount < 2 || onlineSpectator || onlineSymbol !== currentPlayer || activeChallenge) return;
+    lastChallengeResult = '';
     makeMove(index, currentPlayer);
-    if (!gameOver) currentPlayer = oppositeSymbol(currentPlayer);
+    if (!gameOver) {
+      if (onlineBonusTurnFor === onlineSymbol) {
+        onlineBonusTurnFor = '';
+      } else {
+        currentPlayer = oppositeSymbol(currentPlayer);
+      }
+    }
     onlineGameRevision += 1;
     saveOnlineSnapshot();
     updateOnlineStatus();
@@ -2018,6 +2400,7 @@ chatForm.addEventListener('submit', (event) => {
 
 acceptSwapButton.addEventListener('click', () => { void acceptPlayerSwap(); });
 rejectSwapButton.addEventListener('click', () => { void rejectPlayerSwap(); });
+startChallengeButton.addEventListener('click', () => { void startOnlineChallenge(); });
 
 createRoomButton.addEventListener('click', () => {
   if (modeSelect.value !== 'online') modeSelect.value = 'online';

@@ -85,23 +85,92 @@ const winCombos = [
 ];
 
 const challengeQuestions = [
-  { id: 'capital-brasil', question: 'Qual é a capital do Brasil?', options: ['Rio de Janeiro', 'Brasília', 'Salvador', 'São Paulo'], answer: 1 },
-  { id: 'planeta-vermelho', question: 'Qual planeta é conhecido como Planeta Vermelho?', options: ['Vênus', 'Marte', 'Júpiter', 'Mercúrio'], answer: 1 },
-  { id: 'multiplicacao-7-8', question: 'Quanto é 7 × 8?', options: ['54', '56', '58', '64'], answer: 1 },
-  { id: 'maior-oceano', question: 'Qual é o maior oceano da Terra?', options: ['Atlântico', 'Índico', 'Pacífico', 'Ártico'], answer: 2 },
-  { id: 'dom-quixote', question: 'Quem escreveu “Dom Quixote”?', options: ['José de Alencar', 'Miguel de Cervantes', 'Machado de Assis', 'Eça de Queirós'], answer: 1 },
-  { id: 'moeda-japao', question: 'Qual é a moeda oficial do Japão?', options: ['Won', 'Yuan', 'Iene', 'Rupia'], answer: 2 },
-  { id: 'simbolo-ouro', question: 'Qual é o símbolo químico do ouro?', options: ['Ag', 'Au', 'Fe', 'O'], answer: 1 },
-  { id: 'independencia-brasil', question: 'Em que ano o Brasil declarou sua independência?', options: ['1500', '1789', '1822', '1889'], answer: 2 },
-  { id: 'mamifero-marinho', question: 'Qual destes animais é um mamífero?', options: ['Tubarão', 'Polvo', 'Golfinho', 'Atum'], answer: 2 },
-  { id: 'satellite-terra', question: 'Qual é o satélite natural da Terra?', options: ['Fobos', 'Lua', 'Europa', 'Titã'], answer: 1 },
-  { id: 'egito-continente', question: 'Em qual continente fica o Egito?', options: ['Ásia', 'África', 'Europa', 'Oceania'], answer: 1 },
-  { id: 'idioma-portugal', question: 'Qual idioma é falado oficialmente em Portugal?', options: ['Espanhol', 'Italiano', 'Português', 'Francês'], answer: 2 },
-  { id: 'agua-ebulicao', question: 'A que temperatura a água ferve ao nível do mar?', options: ['0 °C', '50 °C', '100 °C', '150 °C'], answer: 2 },
-  { id: 'lados-triangulo', question: 'Quantos lados tem um triângulo?', options: ['2', '3', '4', '5'], answer: 1 },
-  { id: 'menor-primo', question: 'Qual é o menor número primo?', options: ['0', '1', '2', '3'], answer: 2 },
-  { id: 'dias-semana', question: 'Quantos dias tem uma semana?', options: ['5', '6', '7', '8'], answer: 2 }
+  { id: 'ttt-game-paths', question: 'Contando cada ordem de jogadas como uma partida diferente e encerrando assim que alguém vence, quantas partidas legais existem no jogo da velha 3 × 3?', options: ['26.830', '161.568', '255.168', '362.880'], answer: 2 },
+  { id: 'ttt-legal-positions', question: 'Sem tratar rotações ou espelhamentos como iguais, quantas posições legais de tabuleiro podem ser alcançadas?', options: ['765', '2.016', '5.478', '19.683'], answer: 2 },
+  { id: 'ttt-symmetric-positions', question: 'Se rotações e espelhamentos forem considerados a mesma posição, quantas posições legais distintas restam?', options: ['138', '547', '765', '1.098'], answer: 2 },
+  { id: 'ttt-symmetric-games', question: 'Ao agrupar partidas que são iguais por rotação ou espelhamento, quantas sequências completas distintas restam?', options: ['765', '5.478', '26.830', '255.168'], answer: 2 },
+  { id: 'ttt-winning-lines', question: 'Quantas linhas vencedoras diferentes existem em um tabuleiro 3 × 3?', options: ['6', '7', '8', '9'], answer: 2 },
+  { id: 'ttt-center-lines', question: 'A casa central participa de quantas linhas vencedoras?', options: ['2', '3', '4', '8'], answer: 2 },
+  { id: 'ttt-corner-lines', question: 'Uma casa de canto pertence a quantas linhas vencedoras?', options: ['2', '3', '4', '5'], answer: 1 },
+  { id: 'ttt-edge-lines', question: 'Uma casa no meio de uma borda, sem ser canto, pertence a quantas linhas vencedoras?', options: ['1', '2', '3', '4'], answer: 1 },
+  { id: 'ttt-perfect-play', question: 'Quando os dois jogadores fazem sempre a melhor jogada possível, qual resultado o jogo da velha garante?', options: ['Vitória de X', 'Vitória de O', 'Empate', 'Depende de quem começa'], answer: 2 },
+  { id: 'ttt-minimax', question: 'Qual algoritmo clássico escolhe jogadas considerando as melhores respostas possíveis dos dois lados?', options: ['Dijkstra', 'Minimax', 'Kruskal', 'PageRank'], answer: 1 },
+  { id: 'ttt-fork', question: 'Na estratégia do jogo da velha, o que é criar um “garfo”?', options: ['Ocupar duas casas de canto', 'Criar duas ameaças de vitória ao mesmo tempo', 'Bloquear duas linhas próprias', 'Forçar um empate por repetição'], answer: 1 },
+  { id: 'ttt-opening-classes', question: 'Se aberturas equivalentes por rotação e espelhamento forem agrupadas, quantas classes de primeira jogada X existem?', options: ['2', '3', '4', '9'], answer: 1 },
+  { id: 'ttt-square-symmetries', question: 'Quantas simetrias do quadrado mantêm o tabuleiro com a mesma forma: rotações e reflexões?', options: ['4', '6', '8', '12'], answer: 2 },
+  { id: 'ttt-first-player-draw', question: 'Com defesa perfeita de O, o que X consegue garantir mesmo fazendo a primeira jogada?', options: ['Uma vitória', 'No mínimo um empate', 'Que a partida dure nove jogadas', 'Que O não ocupe o centro'], answer: 1 },
+  { id: 'ttt-full-board-x-count', question: 'Se a partida chegar à nona jogada sem vitória anterior e X começou, quantas marcas X haverá no tabuleiro?', options: ['4', '5', '6', '9'], answer: 1 },
+
+  { id: 'tordesilhas-year', question: 'Em que ano Portugal e Espanha assinaram o Tratado de Tordesilhas?', options: ['1453', '1492', '1494', '1500'], answer: 2 },
+  { id: 'inca-quipu', question: 'Qual civilização andina usava cordões com nós chamados quipos para registrar informações?', options: ['Maia', 'Inca', 'Asteca', 'Olmeca'], answer: 1 },
+  { id: 'sumer-cuneiform', question: 'A escrita cuneiforme mais antiga é associada a qual povo da antiga Mesopotâmia?', options: ['Fenícios', 'Sumérios', 'Persas', 'Hititas'], answer: 1 },
+  { id: 'mansa-musa', question: 'Mansa Musa governou qual império africano medieval?', options: ['Mali', 'Axum', 'Songhai', 'Grande Zimbábue'], answer: 0 },
+  { id: 'byzantine-capital', question: 'Qual cidade foi a capital do Império Bizantino?', options: ['Atenas', 'Alexandria', 'Constantinopla', 'Antioquia'], answer: 2 },
+  { id: 'modern-olympics', question: 'Em qual cidade foram realizados os primeiros Jogos Olímpicos da era moderna, em 1896?', options: ['Paris', 'Roma', 'Atenas', 'Londres'], answer: 2 },
+  { id: 'sputnik', question: 'Qual foi o nome do primeiro satélite artificial colocado em órbita da Terra?', options: ['Vostok 1', 'Sputnik 1', 'Explorer 1', 'Luna 1'], answer: 1 },
+  { id: 'first-space-human', question: 'Quem foi a primeira pessoa a viajar ao espaço, em 1961?', options: ['Neil Armstrong', 'John Glenn', 'Yuri Gagarin', 'Alexei Leonov'], answer: 2 },
+  { id: 'penicillin', question: 'Quem identificou a penicilina em 1928?', options: ['Louis Pasteur', 'Alexander Fleming', 'Joseph Lister', 'Edward Jenner'], answer: 1 },
+  { id: 'versailles-treaty', question: 'Qual tratado de paz, assinado em 1919, formalizou o fim da guerra entre a Alemanha e os Aliados na Primeira Guerra Mundial?', options: ['Tratado de Utrecht', 'Tratado de Versalhes', 'Tratado de Brest-Litovsk', 'Tratado de Viena'], answer: 1 },
+  { id: 'modern-art-week', question: 'Em que ano aconteceu a Semana de Arte Moderna de São Paulo?', options: ['1918', '1922', '1928', '1930'], answer: 1 },
+  { id: 'macunaima-author', question: 'Quem escreveu o romance modernista brasileiro “Macunaíma”?', options: ['Oswald de Andrade', 'Mário de Andrade', 'Graciliano Ramos', 'José de Alencar'], answer: 1 },
+  { id: 'guernica-painter', question: 'Quem pintou “Guernica”, obra ligada ao bombardeio da cidade basca durante a Guerra Civil Espanhola?', options: ['Salvador Dalí', 'Joan Miró', 'Pablo Picasso', 'Francisco Goya'], answer: 2 },
+  { id: 'bolero-composer', question: 'Qual compositor francês escreveu “Boléro”?', options: ['Claude Debussy', 'Maurice Ravel', 'Erik Satie', 'Georges Bizet'], answer: 1 },
+  { id: 'carmen-composer', question: 'Quem compôs a ópera “Carmen”?', options: ['Georges Bizet', 'Giuseppe Verdi', 'Giacomo Puccini', 'Richard Wagner'], answer: 0 },
+  { id: 'solitude-author', question: 'Quem escreveu “Cem Anos de Solidão”?', options: ['Jorge Luis Borges', 'Mario Vargas Llosa', 'Gabriel García Márquez', 'Julio Cortázar'], answer: 2 },
+  { id: 'aleph-author', question: 'Qual escritor argentino publicou o conto “O Aleph”?', options: ['Jorge Luis Borges', 'Ernesto Sabato', 'Adolfo Bioy Casares', 'Julio Cortázar'], answer: 0 },
+  { id: 'trial-author', question: 'Quem escreveu o romance “O Processo” (“Der Prozess”)?', options: ['Thomas Mann', 'Franz Kafka', 'Hermann Hesse', 'Robert Musil'], answer: 1 },
+  { id: 'rosetta-stone', question: 'A Pedra de Roseta foi decisiva para decifrar qual sistema de escrita do Egito antigo?', options: ['Escrita demótica', 'Hieróglifos egípcios', 'Cuneiforme', 'Alfabeto fenício'], answer: 1 },
+  { id: 'strait-gibraltar', question: 'O Estreito de Gibraltar liga o Oceano Atlântico a qual mar?', options: ['Mar Negro', 'Mar Vermelho', 'Mar Mediterrâneo', 'Mar Adriático'], answer: 2 },
+  { id: 'bosporus-seas', question: 'O estreito de Bósforo liga o Mar Negro a qual corpo d’água?', options: ['Mar Egeu diretamente', 'Mar de Mármara', 'Mar Cáspio', 'Golfo Pérsico'], answer: 1 },
+  { id: 'suez-seas', question: 'O Canal de Suez conecta o Mar Mediterrâneo a qual mar?', options: ['Mar Negro', 'Mar Vermelho', 'Mar Arábico', 'Mar Cáspio'], answer: 1 },
+  { id: 'lesotho-enclave', question: 'Qual país é completamente cercado pelo território da África do Sul?', options: ['Eswatini', 'Lesoto', 'Botsuana', 'Namíbia'], answer: 1 },
+  { id: 'tigris-baghdad', question: 'Qual rio atravessa Bagdá, capital do Iraque?', options: ['Eufrates', 'Tigre', 'Jordão', 'Orontes'], answer: 1 },
+  { id: 'baikal-depth', question: 'Qual lago é considerado o mais profundo do planeta?', options: ['Tanganica', 'Superior', 'Baikal', 'Vitória'], answer: 2 },
+  { id: 'angel-falls', question: 'O Salto Ángel, uma das cachoeiras mais altas do mundo, fica em qual país?', options: ['Colômbia', 'Peru', 'Venezuela', 'Equador'], answer: 2 },
+  { id: 'bering-strait', question: 'Qual estreito separa o Alasca da Sibéria?', options: ['Davis', 'Bering', 'Drake', 'Magalhães'], answer: 1 },
+  { id: 'great-barrier-reef', question: 'A Grande Barreira de Corais fica ao largo da costa de qual país?', options: ['Indonésia', 'Austrália', 'Filipinas', 'México'], answer: 1 },
+  { id: 'ganymede', question: 'Qual é a maior lua do Sistema Solar?', options: ['Titã', 'Europa', 'Ganimedes', 'Calisto'], answer: 2 },
+  { id: 'olympus-mons', question: 'O Monte Olimpo, o maior vulcão conhecido do Sistema Solar, fica em qual planeta?', options: ['Vênus', 'Marte', 'Mercúrio', 'Júpiter'], answer: 1 },
+  { id: 'uranus-rotation', question: 'Qual planeta tem o eixo de rotação tão inclinado que parece girar “de lado”?', options: ['Saturno', 'Netuno', 'Urano', 'Vênus'], answer: 2 },
+  { id: 'proxima-centauri', question: 'Qual estrela é a mais próxima do Sol depois dele?', options: ['Sirius', 'Betelgeuse', 'Proxima Centauri', 'Vega'], answer: 2 },
+  { id: 'great-red-spot', question: 'A Grande Mancha Vermelha é uma tempestade observada em qual planeta?', options: ['Marte', 'Júpiter', 'Saturno', 'Netuno'], answer: 1 },
+  { id: 'fluorine-electronegativity', question: 'Qual elemento é o mais eletronegativo da tabela periódica?', options: ['Oxigênio', 'Cloro', 'Flúor', 'Nitrogênio'], answer: 2 },
+  { id: 'tungsten-symbol', question: 'Qual elemento químico tem o símbolo W, derivado do nome “wolfram”?', options: ['Vanádio', 'Tungstênio', 'Tálio', 'Tântalo'], answer: 1 },
+  { id: 'sodium-symbol', question: 'O símbolo químico Na vem do nome latino “natrium”. A qual elemento corresponde?', options: ['Neônio', 'Nitrogênio', 'Sódio', 'Níquel'], answer: 2 },
+  { id: 'isotope-definition', question: 'Átomos do mesmo elemento que diferem no número de nêutrons são chamados de quê?', options: ['Íons', 'Isótopos', 'Isômeros', 'Alótropos'], answer: 1 },
+  { id: 'neutral-ph', question: 'A 25 °C, qual valor de pH é considerado neutro em uma solução aquosa ideal?', options: ['5', '6', '7', '8'], answer: 2 },
+  { id: 'ozone-layer', question: 'Em qual camada da atmosfera se concentra a camada de ozônio?', options: ['Troposfera', 'Estratosfera', 'Mesosfera', 'Termosfera'], answer: 1 },
+  { id: 'genetic-drift', question: 'Na evolução, como se chama a mudança aleatória na frequência de variantes genéticas de uma população?', options: ['Seleção artificial', 'Deriva genética', 'Mutação dirigida', 'Convergência evolutiva'], answer: 1 },
+  { id: 'atp-synthase', question: 'Nas células eucarióticas, onde fica a ATP sintase que participa da respiração celular?', options: ['Membrana interna da mitocôndria', 'Membrana externa do núcleo', 'Complexo de Golgi', 'Membrana dos lisossomos'], answer: 0 },
+  { id: 'mammal-red-cells', question: 'Em mamíferos, qual característica é típica das hemácias maduras?', options: ['Têm núcleo e fazem mitose', 'Não têm núcleo', 'Produzem anticorpos', 'Contêm cloroplastos'], answer: 1 },
+  { id: 'octopus-hearts', question: 'Quantos corações tem um polvo?', options: ['Um', 'Dois', 'Três', 'Quatro'], answer: 2 },
+  { id: 'axolotl-regeneration', question: 'Qual anfíbio é famoso por regenerar membros e manter características larvais na fase adulta?', options: ['Salamandra-axolote', 'Perereca-de-vidro', 'Cecília', 'Sapo-cururu'], answer: 0 },
+  { id: 'light-speed', question: 'Qual é aproximadamente a velocidade da luz no vácuo?', options: ['30 mil km/s', '150 mil km/s', '300 mil km/s', '1 milhão de km/s'], answer: 2 },
+  { id: 'visible-wavelength', question: 'Entre as cores visíveis, qual corresponde à menor faixa de comprimento de onda?', options: ['Vermelho', 'Amarelo', 'Verde', 'Violeta'], answer: 3 },
+  { id: 'sound-vacuum', question: 'Por que o som não se propaga no vácuo?', options: ['A gravidade o bloqueia', 'Faltam partículas materiais para transmitir vibrações', 'A luz é rápida demais', 'O vácuo absorve frequências altas'], answer: 1 },
+  { id: 'euler-polyhedron', question: 'Para um poliedro convexo, qual relação de Euler liga vértices (V), arestas (A) e faces (F)?', options: ['V + A + F = 2', 'V − A + F = 2', 'V + A − F = 1', 'V × F − A = 2'], answer: 1 },
+  { id: 'konigsberg-bridges', question: 'O problema das pontes de Königsberg, resolvido por Euler, ajudou a fundar qual área da matemática?', options: ['Teoria dos grafos', 'Teoria dos números', 'Geometria diferencial', 'Análise complexa'], answer: 0 },
+  { id: 'binary-45', question: 'Qual número decimal é representado por 101101 no sistema binário?', options: ['41', '43', '45', '47'], answer: 2 },
+  { id: 'primes-mod-six', question: 'Todo número primo maior que 3 deixa qual resto ao ser dividido por 6?', options: ['Sempre 0 ou 1', 'Sempre 1 ou 5', 'Sempre 2 ou 3', 'Pode deixar qualquer resto'], answer: 1 },
+  { id: 'venus-sidereal-day', question: 'Em qual planeta a rotação em torno do próprio eixo demora mais que uma volta completa ao redor do Sol?', options: ['Mercúrio', 'Vênus', 'Marte', 'Netuno'], answer: 1 },
+  { id: 'seasons-tilt', question: 'Qual fenômeno astronômico é a principal causa das estações do ano na Terra?', options: ['A variação anual da distância Terra–Sol', 'A inclinação do eixo terrestre durante a translação', 'As fases da Lua', 'A mudança da velocidade da rotação terrestre'], answer: 1 },
+  { id: 'turing-imitation-game', question: 'Qual cientista propôs o “jogo da imitação”, que deu origem ao chamado Teste de Turing?', options: ['Claude Shannon', 'Alan Turing', 'John von Neumann', 'Norbert Wiener'], answer: 1 },
+  { id: 'sagrada-familia', question: 'A basílica da Sagrada Família, projetada por Antoni Gaudí, fica em qual cidade?', options: ['Madri', 'Valência', 'Barcelona', 'Sevilha'], answer: 2 },
+  { id: 'angkor-wat', question: 'O complexo de templos de Angkor Wat fica em qual país?', options: ['Tailândia', 'Laos', 'Camboja', 'Mianmar'], answer: 2 },
+  { id: 'petra', question: 'A antiga cidade arqueológica de Petra fica em qual país atual?', options: ['Jordânia', 'Líbano', 'Síria', 'Egito'], answer: 0 },
+  { id: 'moai-rapa-nui', question: 'As famosas estátuas moai foram esculpidas pelos antigos habitantes de qual ilha?', options: ['Sicília', 'Rapa Nui (Ilha de Páscoa)', 'Creta', 'Madagascar'], answer: 1 },
+  { id: 'machu-picchu', question: 'Machu Picchu foi construída por qual civilização?', options: ['Moche', 'Inca', 'Chimu', 'Nazca'], answer: 1 },
+  { id: 'k2-height', question: 'Qual montanha é a segunda mais alta do mundo, depois do Everest?', options: ['Kangchenjunga', 'K2', 'Lhotse', 'Makalu'], answer: 1 },
+  { id: 'un-official-languages', question: 'Quantos idiomas oficiais a Organização das Nações Unidas reconhece?', options: ['4', '5', '6', '8'], answer: 2 },
+  { id: 'portuguese-language-family', question: 'A língua portuguesa pertence a qual ramo das línguas indo-europeias?', options: ['Germânico', 'Eslavo', 'Românico', 'Céltico'], answer: 2 }
 ];
+
+function normalizeUsedChallengeQuestionIds(value) {
+  if (!Array.isArray(value)) return [];
+  const validIds = new Set(challengeQuestions.map((question) => question.id));
+  return [...new Set(value.map((id) => String(id).slice(0, 80)).filter((id) => validIds.has(id)))]
+    .slice(0, challengeQuestions.length);
+}
 
 let gl;
 let program;
@@ -566,14 +635,18 @@ function renderChallenge() {
     return;
   }
 
+  const hasUnusedQuestions = challengeQuestions.some((question) => !challengeQuestionIdsUsed.includes(question.id));
   const challengeAvailable = onlineConnected && onlineRole === 'player' && !onlineSpectator
-    && !gameOver && haveBothPlayersMoved() && !challengeUsedBy.includes(onlinePlayerId);
+    && !gameOver && haveBothPlayersMoved() && hasUnusedQuestions
+    && !challengeUsedBy.includes(onlinePlayerId);
   const canChallenge = challengeAvailable && onlineSymbol === currentPlayer;
   startChallengeButton.hidden = !challengeAvailable;
   startChallengeButton.disabled = !canChallenge || challengeAnswerPending;
   startChallengeButton.textContent = canChallenge ? 'Desafiar adversário' : 'Desafio disponível na sua vez';
 
-  if (lastChallengeResult) {
+  if (!hasUnusedQuestions) {
+    challengeStatus.textContent = 'Todas as perguntas desta sala já foram usadas. Crie outra sala para começar um novo ciclo.';
+  } else if (lastChallengeResult) {
     challengeStatus.textContent = onlineSymbol === currentPlayer && canChallenge
       ? 'Sua vez. O resultado do desafio está logo abaixo.'
       : 'A partida continua.';
@@ -1522,8 +1595,12 @@ async function startOnlineChallenge() {
   }
 
   const availableQuestions = challengeQuestions.filter((question) => !challengeQuestionIdsUsed.includes(question.id));
-  const questionPool = availableQuestions.length ? availableQuestions : challengeQuestions;
-  const question = questionPool[Math.floor(Math.random() * questionPool.length)];
+  if (!availableQuestions.length) {
+    challengeStatus.textContent = 'Todas as perguntas desta sala já foram usadas. Crie outra sala para começar um novo ciclo.';
+    renderChallenge();
+    return;
+  }
+  const question = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
   const challenge = {
     room: onlineRoomCode,
     id: createMessageId(),
@@ -1921,9 +1998,7 @@ function restoreOnlineSnapshot() {
     challengeUsedBy = Array.isArray(saved.challengeUsedBy)
       ? [...new Set(saved.challengeUsedBy.map((id) => String(id).slice(0, 80)))].slice(0, 20)
       : [];
-    challengeQuestionIdsUsed = Array.isArray(saved.challengeQuestionIdsUsed)
-      ? [...new Set(saved.challengeQuestionIdsUsed.map((id) => String(id).slice(0, 80)))].slice(0, challengeQuestions.length)
-      : [];
+    challengeQuestionIdsUsed = normalizeUsedChallengeQuestionIds(saved.challengeQuestionIdsUsed);
     activeChallenge = normalizeActiveChallenge(saved.activeChallenge);
     onlineBonusTurnFor = ['X', 'O'].includes(saved.bonusTurnFor) ? saved.bonusTurnFor : '';
     lastChallengeResult = String(saved.lastChallengeResult || '').slice(0, 240);
@@ -1996,9 +2071,7 @@ function receiveOnlineState(payload) {
   challengeUsedBy = Array.isArray(payload.challengeUsedBy)
     ? [...new Set(payload.challengeUsedBy.map((id) => String(id).slice(0, 80)))].slice(0, 20)
     : [];
-  challengeQuestionIdsUsed = Array.isArray(payload.challengeQuestionIdsUsed)
-    ? [...new Set(payload.challengeQuestionIdsUsed.map((id) => String(id).slice(0, 80)))].slice(0, challengeQuestions.length)
-    : [];
+  challengeQuestionIdsUsed = normalizeUsedChallengeQuestionIds(payload.challengeQuestionIdsUsed);
   activeChallenge = normalizeActiveChallenge(payload.activeChallenge);
   onlineBonusTurnFor = ['X', 'O'].includes(payload.bonusTurnFor) ? payload.bonusTurnFor : '';
   lastChallengeResult = String(payload.lastChallengeResult || '').slice(0, 240);
@@ -2214,7 +2287,6 @@ async function resetOnlineGame() {
   moveHistory = [];
   roundRecorded = false;
   challengeUsedBy = [];
-  challengeQuestionIdsUsed = [];
   activeChallenge = null;
   onlineBonusTurnFor = '';
   lastChallengeResult = '';

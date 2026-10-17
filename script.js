@@ -392,6 +392,13 @@ function oppositeSymbol(symbol) {
   return symbol === 'X' ? 'O' : 'X';
 }
 
+function findAvailableOnlineSymbol(occupiedSymbols, preferredSymbol = '') {
+  if (['X', 'O'].includes(preferredSymbol) && !occupiedSymbols.has(preferredSymbol)) {
+    return preferredSymbol;
+  }
+  return ['X', 'O'].find((symbol) => !occupiedSymbols.has(symbol)) || '';
+}
+
 function isWinner(position, symbol) {
   return winCombos.some((combo) => combo.every((index) => position[index] === symbol));
 }
@@ -559,11 +566,12 @@ function renderChallenge() {
     return;
   }
 
-  const canChallenge = onlineConnected && onlineRole === 'player' && !onlineSpectator
-    && !gameOver && haveBothPlayersMoved() && onlineSymbol === currentPlayer
-    && !challengeUsedBy.includes(onlinePlayerId);
-  startChallengeButton.hidden = !canChallenge;
-  startChallengeButton.disabled = !onlineConnected || challengeAnswerPending;
+  const challengeAvailable = onlineConnected && onlineRole === 'player' && !onlineSpectator
+    && !gameOver && haveBothPlayersMoved() && !challengeUsedBy.includes(onlinePlayerId);
+  const canChallenge = challengeAvailable && onlineSymbol === currentPlayer;
+  startChallengeButton.hidden = !challengeAvailable;
+  startChallengeButton.disabled = !canChallenge || challengeAnswerPending;
+  startChallengeButton.textContent = canChallenge ? 'Desafiar adversário' : 'Desafio disponível na sua vez';
 
   if (lastChallengeResult) {
     challengeStatus.textContent = onlineSymbol === currentPlayer && canChallenge
@@ -1002,35 +1010,33 @@ async function trackRoomPresence() {
     .map((member) => member.symbol)
     .filter((symbol) => symbol === 'X' || symbol === 'O'));
   if (!onlineRole) {
-    const availableSymbol = ['X', 'O'].find((symbol) => !occupiedSymbols.has(symbol));
+    const availableSymbol = findAvailableOnlineSymbol(occupiedSymbols, onlinePreferredSymbol);
     onlineRole = availableSymbol ? 'player' : 'spectator';
+    if (availableSymbol) onlineSymbol = availableSymbol;
   }
 
   if (onlineRole === 'player') {
     if (!onlineSymbol && ownMember && ownMember.role !== 'spectator' && ownMember.symbol) {
       onlineSymbol = ownMember.symbol;
     }
-    if (!onlineSymbol && onlinePreferredSymbol && !occupiedSymbols.has(onlinePreferredSymbol)) {
-      onlineSymbol = onlinePreferredSymbol;
+    if (!onlineSymbol || occupiedSymbols.has(onlineSymbol)) {
+      const ownerPreference = onlinePlayerId === onlineHostId
+        ? 'X'
+        : (owner && owner.role !== 'spectator' ? oppositeSymbol(owner.symbol) : '');
+      onlineSymbol = findAvailableOnlineSymbol(occupiedSymbols, onlinePreferredSymbol || ownerPreference);
     }
     if (!onlineSymbol) {
-      onlineSymbol = onlinePlayerId === onlineHostId && !occupiedSymbols.has('X')
-        ? 'X'
-        : (owner && owner.role !== 'spectator' && owner.symbol && !occupiedSymbols.has(oppositeSymbol(owner.symbol))
-          ? oppositeSymbol(owner.symbol)
-          : (['X', 'O'].find((symbol) => !occupiedSymbols.has(symbol)) || ''));
-    }
-    if (!onlineSymbol || occupiedSymbols.has(onlineSymbol)) {
       onlineRole = 'spectator';
-      onlineSymbol = '';
     } else {
       onlinePreferredSymbol = onlineSymbol;
     }
-  } else if (onlineRole === 'spectator' && onlinePreferredSymbol
-    && !occupiedSymbols.has(onlinePreferredSymbol)) {
-    // Se a presença chegou como espectador durante a reconexão, recupera a vaga antiga.
-    onlineRole = 'player';
-    onlineSymbol = onlinePreferredSymbol;
+  } else if (onlineRole === 'spectator' && onlinePreferredSymbol) {
+    // Se a presença chegou como espectador durante a reconexão, recupera uma vaga livre.
+    onlineSymbol = findAvailableOnlineSymbol(occupiedSymbols, onlinePreferredSymbol);
+    if (onlineSymbol) {
+      onlineRole = 'player';
+      onlinePreferredSymbol = onlineSymbol;
+    }
   }
   onlineSpectator = onlineRole === 'spectator';
   if (onlineRole === 'spectator') {
@@ -1749,17 +1755,13 @@ function updateOnlinePresence() {
     && (ownMember.symbol === 'X' || ownMember.symbol === 'O')) {
     onlineSymbol = ownMember.symbol;
   }
-  if (onlineRole === 'spectator' && onlinePreferredSymbol
-    && !occupiedSymbols.has(onlinePreferredSymbol)) {
-    onlineRole = 'player';
-    onlineSymbol = onlinePreferredSymbol;
-  } else if (onlineRole === 'player' && !onlineSymbol && onlinePreferredSymbol
-    && !occupiedSymbols.has(onlinePreferredSymbol)) {
-    onlineSymbol = onlinePreferredSymbol;
+  if (onlineRole === 'spectator' && onlinePreferredSymbol) {
+    onlineSymbol = findAvailableOnlineSymbol(occupiedSymbols, onlinePreferredSymbol);
+    if (onlineSymbol) onlineRole = 'player';
   }
-  if (onlineRole === 'player' && onlineSymbol && occupiedSymbols.has(onlineSymbol)) {
-    onlineRole = 'spectator';
-    onlineSymbol = '';
+  if (onlineRole === 'player' && (!onlineSymbol || occupiedSymbols.has(onlineSymbol))) {
+    onlineSymbol = findAvailableOnlineSymbol(occupiedSymbols, onlinePreferredSymbol);
+    if (!onlineSymbol) onlineRole = 'spectator';
   }
   onlineSpectator = onlineRole === 'spectator';
   const currentOwner = members.find((member) => member.id === onlineHostId);
@@ -1961,7 +1963,24 @@ function receiveOnlineState(payload) {
   if (!Array.isArray(payload.board) || payload.board.length !== 9) return;
   if (!payload.board.every((mark) => mark === '' || mark === 'X' || mark === 'O')) return;
   if (payload.currentPlayer !== 'X' && payload.currentPlayer !== 'O') return;
-  if (Number(payload.revision) < onlineGameRevision) return;
+  const isRoomHostState = payload.senderId === onlineHostId;
+  if (isRoomHostState) {
+    roomStartingPreference = ['X', 'O', 'random'].includes(payload.startingPreference)
+      ? payload.startingPreference
+      : roomStartingPreference;
+    roomChallengeEnabled = Boolean(payload.challengeEnabled);
+    challengeNextStarter = ['X', 'O'].includes(payload.challengeNextStarter) ? payload.challengeNextStarter : '';
+  } else if (roomChallengeEnabled && payload.challengeEnabled
+    && ['X', 'O'].includes(payload.challengeNextStarter)) {
+    challengeNextStarter = payload.challengeNextStarter;
+  }
+  if (Number(payload.revision) < onlineGameRevision) {
+    if (isRoomHostState) {
+      saveOnlineSnapshot();
+      updateOnlineStatus();
+    }
+    return;
+  }
 
   board = [...payload.board];
   currentPlayer = payload.currentPlayer;
@@ -1974,11 +1993,6 @@ function receiveOnlineState(payload) {
   roomStats = normalizeStats(payload.stats);
   gameOver = isWinner(board, 'X') || isWinner(board, 'O') || isTie(board);
   roundRecorded = Boolean(payload.roundRecorded) || gameOver;
-  roomStartingPreference = ['X', 'O', 'random'].includes(payload.startingPreference)
-    ? payload.startingPreference
-    : roomStartingPreference;
-  roomChallengeEnabled = Boolean(payload.challengeEnabled);
-  challengeNextStarter = ['X', 'O'].includes(payload.challengeNextStarter) ? payload.challengeNextStarter : '';
   challengeUsedBy = Array.isArray(payload.challengeUsedBy)
     ? [...new Set(payload.challengeUsedBy.map((id) => String(id).slice(0, 80)))].slice(0, 20)
     : [];

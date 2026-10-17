@@ -2008,3 +2008,189 @@ button:disabled {
     gap: 5px;
   }
 }
+
+.room-spectators {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-color);
+}
+
+.spectator-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.spectator-heading h3 {
+  margin: 0;
+  color: var(--muted-color);
+  font-size: 0.76rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.spectator-count {
+  display: grid;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-color) 14%, var(--panel-bg));
+  color: var(--accent-color);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.spectator-list {
+  display: grid;
+  max-height: 132px;
+  gap: 6px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 2px 0 0;
+  list-style: none;
+  scrollbar-color: var(--border-color) transparent;
+  scrollbar-width: thin;
+}
+
+.spectator-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--panel-bg);
+}
+
+.spectator-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spectator-swap-button,
+.swap-accept-button,
+.swap-reject-button {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--page-bg);
+  color: var(--text-color);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.spectator-swap-button:hover:not(:disabled),
+.swap-accept-button:hover,
+.swap-reject-button:hover {
+  transform: translateY(-1px);
+}
+
+.spectator-swap-button:hover:not(:disabled) {
+  border-color: var(--accent-color);
+  background: color-mix(in srgb, var(--accent-color) 10%, var(--panel-bg));
+}
+
+.spectator-swap-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.swap-status,
+.swap-invitation {
+  margin: 9px 0 0;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent-color) 34%, var(--border-color));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-color) 8%, var(--panel-bg));
+  color: var(--text-color);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.swap-invitation p {
+  margin: 0;
+  font-weight: 650;
+}
+
+.swap-invitation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+
+.swap-accept-button {
+  border-color: color-mix(in srgb, #20b978 55%, var(--border-color));
+  background: color-mix(in srgb, #20b978 14%, var(--panel-bg));
+  color: color-mix(in srgb, #128653 80%, var(--text-color));
+}
+
+.swap-reject-button {
+  border-color: color-mix(in srgb, #ed5570 45%, var(--border-color));
+  background: color-mix(in srgb, #ed5570 10%, var(--panel-bg));
+  color: color-mix(in srgb, #d23c57 80%, var(--text-color));
+}
+
+.swap-accept-button:focus-visible,
+.swap-reject-button:focus-visible,
+.spectator-swap-button:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent-color) 60%, transparent);
+  outline-offset: 2px;
+}
+
+.chat-message-spectator .chat-message-name {
+  color: #a15bd1;
+}
+
+.chat-message-spectator .chat-message-bubble {
+  border-color: color-mix(in srgb, #a15bd1 38%, var(--border-color));
+  background: color-mix(in srgb, #a15bd1 10%, var(--panel-bg));
+}
+
+body.dark .chat-message-spectator .chat-message-name {
+  color: #d4a0f2;
+}
+
+@media (min-width: 1000px) and (max-height: 820px) {
+  body.game-active .spectator-list {
+    max-height: 86px;
+  }
+
+  body.game-active .swap-status,
+  body.game-active .swap-invitation {
+    padding: 7px 8px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .spectator-list {
+    max-height: 180px;
+  }
+
+  .spectator-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .spectator-swap-button {
+    width: 100%;
+  }
+}

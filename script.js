@@ -46,6 +46,14 @@ const connectionStatus = document.getElementById('connectionStatus');
 const leaveRoomButton = document.getElementById('leaveRoomButton');
 const onlinePlayersPanel = document.getElementById('onlinePlayersPanel');
 const playerCards = document.getElementById('playerCards');
+const roomSpectators = document.getElementById('roomSpectators');
+const spectatorCount = document.getElementById('spectatorCount');
+const spectatorList = document.getElementById('spectatorList');
+const swapStatus = document.getElementById('swapStatus');
+const swapInvitationPanel = document.getElementById('swapInvitationPanel');
+const swapInvitationText = document.getElementById('swapInvitationText');
+const acceptSwapButton = document.getElementById('acceptSwapButton');
+const rejectSwapButton = document.getElementById('rejectSwapButton');
 const roomBadge = document.getElementById('roomBadge');
 const playerJoinAlert = document.getElementById('playerJoinAlert');
 const playerJoinAlertText = document.getElementById('playerJoinAlertText');
@@ -97,6 +105,7 @@ let onlineHostEpoch = 0;
 let onlineJoinedAt = 0;
 let onlinePlayerId = getOnlinePlayerId();
 let onlineSymbol = '';
+let onlineRole = '';
 let onlinePlayerCount = 0;
 let onlineConnected = false;
 let onlineSpectator = false;
@@ -113,6 +122,11 @@ const spokenIncomingMessageIds = new Set();
 let previousPresenceMembers = new Map();
 let hasSyncedRoomPresence = false;
 let joinAlertTimeout;
+let pendingSwapRequest = null;
+let incomingSwapRequest = null;
+let swapRequestTimeout;
+let incomingSwapTimeout;
+const completedSwapRequestIds = new Set();
 
 const vertexShaderSource = `#version 300 es
 in vec2 a_position;
@@ -321,6 +335,14 @@ function updateCellButtons() {
     cell.disabled = !gl || gameOver || aiThinking || Boolean(value) || onlineTurnBlocked
       || (modeSelect.value === 'ai' && currentPlayer !== human);
   });
+
+  if (modeSelect.value === 'online') {
+    const playerActionsBlocked = !onlineConnected || onlinePlayerCount < 2 || onlineSpectator;
+    resetButton.disabled = playerActionsBlocked;
+    resetStatsButton.disabled = playerActionsBlocked;
+  } else {
+    resetButton.disabled = false;
+  }
 }
 
 function playSound(sound) {
@@ -822,6 +844,9 @@ function getOnlineMembers() {
       name: String(metadata && metadata.name || '').slice(0, 20),
       joinedAt: Number(metadata && metadata.joinedAt) || 0,
       symbol: metadata && (metadata.symbol === 'X' || metadata.symbol === 'O') ? metadata.symbol : '',
+      role: metadata && (metadata.role === 'player' || metadata.role === 'spectator')
+        ? metadata.role
+        : (metadata && (metadata.symbol === 'X' || metadata.symbol === 'O') ? 'player' : ''),
       hostId: String(metadata && metadata.hostId || ''),
       hostEpoch: Number(metadata && metadata.hostEpoch) || 0
     };
@@ -833,33 +858,50 @@ async function trackRoomPresence() {
 
   const members = getOnlineMembers();
   const advertisedOwner = members
-    .filter((member) => member.hostId === member.id)
+    .filter((member) => member.hostId === member.id && member.role !== 'spectator')
     .sort((left, right) => right.hostEpoch - left.hostEpoch
       || left.joinedAt - right.joinedAt || left.id.localeCompare(right.id))[0];
-  if (advertisedOwner) {
+  if (advertisedOwner && advertisedOwner.hostEpoch >= onlineHostEpoch) {
     onlineHostId = advertisedOwner.id;
     onlineHostEpoch = Math.max(onlineHostEpoch, advertisedOwner.hostEpoch);
   }
 
   const owner = members.find((member) => member.id === onlineHostId);
   const ownMember = members.find((member) => member.id === onlinePlayerId);
-  if (ownMember && ownMember.symbol) {
-    onlineSymbol = ownMember.symbol;
-  } else if (onlinePlayerId === onlineHostId) {
-    onlineSymbol = onlineSymbol || 'X';
-  } else if (owner && owner.symbol) {
-    onlineSymbol = oppositeSymbol(owner.symbol);
-  } else if (!onlineSymbol) {
-    onlineSymbol = 'O';
+  if (!onlineRole && ownMember && ownMember.role) onlineRole = ownMember.role;
+  if (!onlineRole && ownMember && ownMember.symbol) onlineRole = 'player';
+
+  const occupiedSymbols = new Set(members
+    .filter((member) => member.id !== onlinePlayerId && member.role !== 'spectator')
+    .map((member) => member.symbol)
+    .filter((symbol) => symbol === 'X' || symbol === 'O'));
+  if (!onlineRole) {
+    const availableSymbol = ['X', 'O'].find((symbol) => !occupiedSymbols.has(symbol));
+    onlineRole = availableSymbol ? 'player' : 'spectator';
   }
-  if (onlinePlayerId !== onlineHostId && owner && owner.symbol === onlineSymbol) {
-    onlineSymbol = oppositeSymbol(owner.symbol);
+
+  if (onlineRole === 'player') {
+    if (!onlineSymbol && ownMember && ownMember.role !== 'spectator' && ownMember.symbol) {
+      onlineSymbol = ownMember.symbol;
+    }
+    if (!onlineSymbol) {
+      onlineSymbol = onlinePlayerId === onlineHostId && !occupiedSymbols.has('X')
+        ? 'X'
+        : (owner && owner.role !== 'spectator' && owner.symbol && !occupiedSymbols.has(oppositeSymbol(owner.symbol))
+          ? oppositeSymbol(owner.symbol)
+          : (['X', 'O'].find((symbol) => !occupiedSymbols.has(symbol)) || ''));
+    }
+    if (!onlineSymbol) onlineRole = 'spectator';
+  }
+  if (onlineRole === 'spectator') {
+    onlineSymbol = '';
   }
 
   try {
     await onlineChannel.track({
       joinedAt: onlineJoinedAt || Date.now(),
       name: playerName,
+      role: onlineRole,
       symbol: onlineSymbol,
       hostId: onlineHostId,
       hostEpoch: onlineHostEpoch
@@ -885,6 +927,7 @@ function normalizeChatMessage(message) {
     type: isSystem ? 'system' : 'chat',
     senderId: String(message.senderId || '').slice(0, 80),
     senderName: String(message.senderName || 'Jogador').replace(/\s+/g, ' ').trim().slice(0, 20),
+    role: message.role === 'spectator' ? 'spectator' : 'player',
     symbol: message.symbol === 'O' ? 'O' : (message.symbol === 'X' ? 'X' : ''),
     text,
     sentAt: String(message.sentAt || new Date().toISOString())
@@ -924,13 +967,14 @@ function renderChat() {
       }
 
       const isSelf = message.senderId === onlinePlayerId;
-      item.className = 'chat-message chat-message-' + (message.symbol || 'x').toLowerCase()
+      item.className = 'chat-message chat-message-' + (message.role === 'spectator' ? 'spectator' : (message.symbol || 'x').toLowerCase())
         + (isSelf ? ' from-self' : '');
       const meta = document.createElement('div');
       meta.className = 'chat-message-meta';
       const name = document.createElement('span');
       name.className = 'chat-message-name';
-      name.textContent = (isSelf ? 'Você' : message.senderName) + (message.symbol ? ' · ' + message.symbol : '');
+      name.textContent = (isSelf ? 'Você' : message.senderName)
+        + (message.role === 'spectator' ? ' · espectador' : (message.symbol ? ' · ' + message.symbol : ''));
       const time = document.createElement('time');
       time.className = 'chat-message-time';
       const sentAt = new Date(message.sentAt);
@@ -948,12 +992,12 @@ function renderChat() {
     });
   }
 
-  const canChat = onlineConnected && onlinePlayerCount >= 2 && !onlineSpectator;
+  const canChat = onlineConnected && Boolean(onlineRoomCode);
   chatInput.disabled = !canChat;
   sendChatButton.disabled = !canChat;
   chatHint.textContent = onlineSpectator
-    ? 'O chat está disponível apenas para os dois jogadores.'
-    : (canChat ? 'Conversa da sala em tempo real.' : 'Entre na sala com dois jogadores para conversar.');
+    ? 'Você está como espectador; pode acompanhar e conversar no chat.'
+    : (canChat ? 'Conversa da sala em tempo real.' : 'Entre em uma sala para conversar.');
   chatMessagesElement.scrollTop = chatMessagesElement.scrollHeight;
 }
 
@@ -1026,8 +1070,10 @@ function renderOnlinePlayers(members = getOnlineMembers()) {
   roomBadge.textContent = onlineRoomCode ? 'SALA ' + onlineRoomCode : '';
   if (!inOnlineRoom) return;
 
-  const xPlayer = members.find((member) => member.symbol === 'X');
-  const oPlayer = members.find((member) => member.symbol === 'O');
+  const roomPlayers = members.filter((member) => member.role === 'player'
+    || member.symbol === 'X' || member.symbol === 'O');
+  const xPlayer = roomPlayers.find((member) => member.symbol === 'X');
+  const oPlayer = roomPlayers.find((member) => member.symbol === 'O');
   playerCards.replaceChildren();
 
   [
@@ -1035,7 +1081,7 @@ function renderOnlinePlayers(members = getOnlineMembers()) {
     { symbol: 'O', player: oPlayer }
   ].forEach(({ symbol, player }) => {
     const isSelf = Boolean((player && player.id === onlinePlayerId)
-      || (!player && !onlineSpectator && onlineSymbol === symbol));
+      || (!player && onlineRole === 'player' && onlineSymbol === symbol));
     const card = document.createElement('div');
     card.className = 'player-card player-' + symbol.toLowerCase();
     const badge = document.createElement('span');
@@ -1055,18 +1101,54 @@ function renderOnlinePlayers(members = getOnlineMembers()) {
     card.append(badge, details);
     playerCards.append(card);
   });
+
+  const spectators = members.filter((member) => member.role === 'spectator' && member.id !== onlinePlayerId);
+  roomSpectators.hidden = spectators.length === 0;
+  spectatorCount.textContent = String(spectators.length);
+  spectatorList.replaceChildren();
+  spectators.forEach((spectator) => {
+    const item = document.createElement('li');
+    item.className = 'spectator-card';
+    const identity = document.createElement('span');
+    identity.className = 'spectator-name';
+    identity.textContent = spectator.name || 'Espectador';
+    const action = document.createElement('button');
+    action.className = 'spectator-swap-button';
+    action.type = 'button';
+    action.textContent = pendingSwapRequest && pendingSwapRequest.targetId === spectator.id
+      ? 'Aguardando…' : 'Solicitar troca';
+    action.disabled = !onlineConnected || onlineSpectator || onlineRole !== 'player'
+      || Boolean(pendingSwapRequest) || Boolean(incomingSwapRequest);
+    action.setAttribute('aria-label', 'Solicitar troca de lugar com ' + (spectator.name || 'espectador'));
+    action.addEventListener('click', () => { void requestPlayerSwap(spectator); });
+    item.append(identity, action);
+    spectatorList.append(item);
+  });
+
+  const showSwapStatus = Boolean(pendingSwapRequest);
+  swapStatus.hidden = !showSwapStatus;
+  swapStatus.textContent = showSwapStatus
+    ? 'Pedido de troca enviado para ' + (pendingSwapRequest.targetName || 'o espectador') + '. Aguardando resposta.'
+    : '';
+  swapInvitationPanel.hidden = !incomingSwapRequest;
+  if (incomingSwapRequest) {
+    swapInvitationText.textContent = (incomingSwapRequest.requesterName || 'Um jogador')
+      + ' quer trocar de lugar com você. Se aceitar, você assume o símbolo '
+      + incomingSwapRequest.symbol + ' e ele passa a espectador.';
+  }
 }
 
 async function sendChatMessage(event) {
   event.preventDefault();
   const text = chatInput.value.replace(/\s+/g, ' ').trim().slice(0, 300);
-  if (!text || !onlineConnected || onlinePlayerCount < 2 || onlineSpectator || !onlineChannel) return;
+  if (!text || !onlineConnected || !onlineRoomCode || !onlineChannel) return;
 
   const message = normalizeChatMessage({
     id: createMessageId(),
     senderId: onlinePlayerId,
     senderName: playerName,
-    symbol: onlineSymbol,
+    role: onlineRole,
+    symbol: onlineRole === 'player' ? onlineSymbol : '',
     text,
     sentAt: new Date().toISOString()
   });
@@ -1095,6 +1177,190 @@ function receiveChatMessage(payload) {
   saveOnlineSnapshot();
 }
 
+async function requestPlayerSwap(spectator) {
+  if (!onlineConnected || !onlineChannel || onlineRole !== 'player' || onlineSpectator
+    || !['X', 'O'].includes(onlineSymbol) || pendingSwapRequest || incomingSwapRequest) return;
+  const currentSpectator = getOnlineMembers().find((member) => member.id === spectator.id);
+  if (!currentSpectator || currentSpectator.role !== 'spectator') return;
+
+  const request = {
+    room: onlineRoomCode,
+    requestId: createMessageId(),
+    requesterId: onlinePlayerId,
+    requesterName: playerName,
+    targetId: currentSpectator.id,
+    targetName: currentSpectator.name,
+    symbol: onlineSymbol,
+    sentAt: Date.now()
+  };
+  pendingSwapRequest = request;
+  window.clearTimeout(swapRequestTimeout);
+  swapRequestTimeout = window.setTimeout(() => {
+    if (!pendingSwapRequest || pendingSwapRequest.requestId !== request.requestId) return;
+    pendingSwapRequest = null;
+    addSystemMessage('A solicitação de troca expirou.');
+    renderOnlinePlayers();
+  }, 60000);
+  renderOnlinePlayers();
+
+  try {
+    const result = await onlineChannel.send({ type: 'broadcast', event: 'swap-request', payload: request });
+    if (result !== 'ok' && pendingSwapRequest && pendingSwapRequest.requestId === request.requestId) {
+      clearPendingSwapRequest();
+      addSystemMessage('Não foi possível enviar a solicitação de troca.');
+    }
+  } catch (error) {
+    if (pendingSwapRequest && pendingSwapRequest.requestId === request.requestId) {
+      clearPendingSwapRequest();
+      addSystemMessage('Não foi possível enviar a solicitação de troca.');
+    }
+  }
+}
+
+function clearPendingSwapRequest() {
+  pendingSwapRequest = null;
+  window.clearTimeout(swapRequestTimeout);
+  renderOnlinePlayers();
+}
+
+function receiveSwapRequest(payload) {
+  if (!payload || payload.room !== onlineRoomCode || payload.targetId !== onlinePlayerId
+    || payload.requesterId === onlinePlayerId || !payload.requestId
+    || !['X', 'O'].includes(payload.symbol) || onlineRole !== 'spectator') return;
+  const sentAt = Number(payload.sentAt);
+  if (!Number.isFinite(sentAt) || Date.now() - sentAt > 60000) return;
+  const requester = getOnlineMembers().find((member) => member.id === payload.requesterId);
+  if (!requester || requester.role !== 'player' || requester.symbol !== payload.symbol) return;
+
+  incomingSwapRequest = {
+    requestId: String(payload.requestId),
+    requesterId: String(payload.requesterId),
+    requesterName: String(payload.requesterName || requester.name || 'Um jogador').slice(0, 20),
+    targetId: onlinePlayerId,
+    symbol: payload.symbol,
+    sentAt
+  };
+  window.clearTimeout(incomingSwapTimeout);
+  incomingSwapTimeout = window.setTimeout(() => {
+    if (!incomingSwapRequest || incomingSwapRequest.requestId !== payload.requestId) return;
+    incomingSwapRequest = null;
+    renderOnlinePlayers();
+    addSystemMessage('A solicitação de troca expirou.');
+  }, Math.max(0, 60000 - (Date.now() - sentAt)));
+  renderOnlinePlayers();
+}
+
+async function acceptPlayerSwap() {
+  const request = incomingSwapRequest;
+  if (!request || !onlineConnected || !onlineChannel || onlineRole !== 'spectator'
+    || Date.now() - request.sentAt > 60000) {
+    if (request && Date.now() - request.sentAt > 60000) {
+      incomingSwapRequest = null;
+      window.clearTimeout(incomingSwapTimeout);
+      renderOnlinePlayers();
+      addSystemMessage('A solicitação de troca expirou.');
+    }
+    return;
+  }
+  const requester = getOnlineMembers().find((member) => member.id === request.requesterId);
+  if (!requester || requester.role !== 'player' || requester.symbol !== request.symbol) {
+    incomingSwapRequest = null;
+    window.clearTimeout(incomingSwapTimeout);
+    renderOnlinePlayers();
+    addSystemMessage('A troca não pôde ser concluída porque o jogador saiu da sala.');
+    return;
+  }
+
+  const completion = {
+    room: onlineRoomCode,
+    requestId: request.requestId,
+    requesterId: request.requesterId,
+    requesterName: request.requesterName,
+    targetId: onlinePlayerId,
+    targetName: playerName,
+    symbol: request.symbol,
+    hostId: onlineHostId,
+    sentAt: Date.now()
+  };
+  try {
+    const result = await onlineChannel.send({ type: 'broadcast', event: 'swap-complete', payload: completion });
+    if (result !== 'ok') {
+      addSystemMessage('Não foi possível confirmar a troca. Tente novamente.');
+      return;
+    }
+    await applySwapCompletion(completion);
+  } catch (error) {
+    addSystemMessage('Não foi possível confirmar a troca. Verifique sua conexão.');
+  }
+}
+
+async function rejectPlayerSwap() {
+  const request = incomingSwapRequest;
+  if (!request || !onlineChannel) return;
+  incomingSwapRequest = null;
+  window.clearTimeout(incomingSwapTimeout);
+  renderOnlinePlayers();
+  try {
+    await onlineChannel.send({
+      type: 'broadcast',
+      event: 'swap-reject',
+      payload: { room: onlineRoomCode, requestId: request.requestId, requesterId: request.requesterId }
+    });
+  } catch (error) {
+    // A recusa local continua valendo mesmo se a notificação não chegar ao solicitante.
+  }
+}
+
+function receiveSwapReject(payload) {
+  if (!payload || payload.room !== onlineRoomCode || payload.requesterId !== onlinePlayerId
+    || !pendingSwapRequest || payload.requestId !== pendingSwapRequest.requestId) return;
+  clearPendingSwapRequest();
+  addSystemMessage('Sua solicitação de troca foi recusada.');
+}
+
+async function applySwapCompletion(payload) {
+  if (!payload || payload.room !== onlineRoomCode || !payload.requestId
+    || !['X', 'O'].includes(payload.symbol) || completedSwapRequestIds.has(payload.requestId)) return;
+  if (onlinePlayerId !== payload.requesterId && onlinePlayerId !== payload.targetId) return;
+  if (onlinePlayerId === payload.requesterId
+    && (!pendingSwapRequest || pendingSwapRequest.requestId !== payload.requestId)) return;
+  if (onlinePlayerId === payload.targetId
+    && (!incomingSwapRequest || incomingSwapRequest.requestId !== payload.requestId)) return;
+  completedSwapRequestIds.add(payload.requestId);
+  if (completedSwapRequestIds.size > 100) completedSwapRequestIds.delete(completedSwapRequestIds.values().next().value);
+
+  const wasHost = onlineHostId === payload.requesterId;
+  if (onlinePlayerId === payload.requesterId) {
+    onlineRole = 'spectator';
+    onlineSpectator = true;
+    onlineSymbol = '';
+    clearPendingSwapRequest();
+  } else {
+    onlineRole = 'player';
+    onlineSpectator = false;
+    onlineSymbol = payload.symbol;
+    incomingSwapRequest = null;
+    window.clearTimeout(incomingSwapTimeout);
+  }
+  if (wasHost || payload.hostId === payload.requesterId) {
+    onlineHostId = payload.targetId;
+    onlineHostEpoch += 1;
+  }
+  await trackRoomPresence();
+  updateOnlinePresence();
+  updateOnlineStatus();
+  updateCellButtons();
+  if (onlinePlayerId === payload.targetId) {
+    addSystemMessage((payload.targetName || playerName) + ' assumiu o lugar do jogador '
+      + payload.symbol + '. A partida continuou sem alterações.', { announce: true });
+    if (onlinePlayerId === onlineHostId) void sendOnlineState();
+  }
+}
+
+function receiveSwapCompletion(payload) {
+  void applySwapCompletion(payload);
+}
+
 function updateOnlineStatus() {
   if (modeSelect.value !== 'online') return;
 
@@ -1109,7 +1375,7 @@ function updateOnlineStatus() {
   }
 
   if (onlineSpectator) {
-    connectionStatus.textContent = 'Esta sala já tem dois jogadores. Você está acompanhando como espectador.';
+    connectionStatus.textContent = 'Você está como espectador. Acompanhe a partida e converse no chat.';
   } else if (!onlineConnected) {
     connectionStatus.textContent = onlineRoomCode ? 'Conectando à sala…' : 'Crie uma sala ou entre com o código de um amigo.';
   } else if (onlinePlayerCount < 2) {
@@ -1138,51 +1404,63 @@ function updateOnlinePresence() {
 
   const members = getOnlineMembers();
   const memberIds = members.map((member) => member.id);
+  const players = members.filter((member) => member.role === 'player'
+    || member.symbol === 'X' || member.symbol === 'O');
   const wasFirstSync = !hasSyncedRoomPresence;
   const newlyJoinedMember = !wasFirstSync
     ? members.find((member) => member.id !== onlinePlayerId && !previousPresenceMembers.has(member.id))
     : null;
   const previousHostId = onlineHostId;
   const advertisedOwners = members
-    .filter((member) => member.hostId === member.id)
+    .filter((member) => member.hostId === member.id && member.role !== 'spectator')
     .sort((left, right) => right.hostEpoch - left.hostEpoch
       || left.joinedAt - right.joinedAt || left.id.localeCompare(right.id));
   let ownershipTransferred = false;
 
-  if (advertisedOwners.length) {
+  if (advertisedOwners.length && advertisedOwners[0].hostEpoch >= onlineHostEpoch) {
     onlineHostId = advertisedOwners[0].id;
     onlineHostEpoch = Math.max(onlineHostEpoch, advertisedOwners[0].hostEpoch);
-  } else if (onlineHostId && !memberIds.includes(onlineHostId) && members.length) {
-    const successor = members.find((member) => member.symbol === 'X' || member.symbol === 'O') || members[0];
+  } else if (onlineHostId && !memberIds.includes(onlineHostId) && players.length) {
+    const successor = players[0];
     onlineHostId = successor.id;
     onlineHostEpoch = Math.max(onlineHostEpoch, ...members.map((member) => member.hostEpoch)) + 1;
     ownershipTransferred = previousHostId !== onlineHostId;
-  } else if (!onlineHostId && members.length) {
-    onlineHostId = members[0].id;
+  } else if (!onlineHostId && players.length) {
+    onlineHostId = players[0].id;
     onlineHostEpoch = Math.max(onlineHostEpoch, ...members.map((member) => member.hostEpoch));
   }
 
-  onlinePlayerCount = members.length;
-  onlineSpectator = members.length > 2 || (members.length > 0 && !memberIds.includes(onlinePlayerId));
+  onlinePlayerCount = players.length;
   const ownMember = members.find((member) => member.id === onlinePlayerId);
+  if (!onlineRole && ownMember && ownMember.role) onlineRole = ownMember.role;
+  else if (!onlineRole && ownMember && ownMember.symbol) onlineRole = 'player';
+  onlineSpectator = onlineRole === 'spectator';
   const currentOwner = members.find((member) => member.id === onlineHostId);
-  if (ownMember && (ownMember.symbol === 'X' || ownMember.symbol === 'O')) {
+  if (!onlineSymbol && onlineRole === 'player' && ownMember && ownMember.role !== 'spectator'
+    && (ownMember.symbol === 'X' || ownMember.symbol === 'O')) {
     onlineSymbol = ownMember.symbol;
+  } else if (onlineSpectator) {
+    onlineSymbol = '';
   } else if (!onlineSymbol && onlinePlayerId === onlineHostId) {
     onlineSymbol = 'X';
-  } else if (!onlineSymbol && currentOwner && currentOwner.symbol) {
-    onlineSymbol = oppositeSymbol(currentOwner.symbol);
-  } else if (!onlineSymbol && onlineHostId) {
-    onlineSymbol = 'O';
-  }
-  if (onlinePlayerId !== onlineHostId && currentOwner && currentOwner.symbol === onlineSymbol) {
+  } else if (!onlineSymbol && currentOwner && currentOwner.role !== 'spectator' && currentOwner.symbol) {
     onlineSymbol = oppositeSymbol(currentOwner.symbol);
   }
 
   previousPresenceMembers = new Map(members.map((member) => [member.id, member]));
   hasSyncedRoomPresence = true;
 
-  const isRoomOwner = Boolean(onlineHostId && onlinePlayerId === onlineHostId && !onlineSpectator);
+  if (pendingSwapRequest && !memberIds.includes(pendingSwapRequest.targetId)) {
+    clearPendingSwapRequest();
+    addSystemMessage('O espectador saiu da sala antes de responder à troca.');
+  }
+  if (incomingSwapRequest && (!memberIds.includes(incomingSwapRequest.requesterId)
+    || Date.now() - incomingSwapRequest.sentAt > 60000)) {
+    incomingSwapRequest = null;
+    window.clearTimeout(incomingSwapTimeout);
+  }
+
+  const isRoomOwner = Boolean(onlineHostId && onlinePlayerId === onlineHostId && onlineRole === 'player');
   roomShare.hidden = !isRoomOwner;
   if (onlineRoomCode && onlineHostId) {
     const inviteUrl = new URL(window.location.href);
@@ -1199,15 +1477,20 @@ function updateOnlinePresence() {
     if (!gameOver && onlineSymbol && currentPlayer !== onlineSymbol) currentPlayer = onlineSymbol;
     onlineGameRevision += 1;
     showRoomOwnerTransferAlert(successorName);
-    addSystemMessage('O anfitrião se desconectou. ' + successorName
-      + ' assumiu a sala; o tabuleiro e o placar foram mantidos.', { announce: true });
+    if (isRoomOwner) {
+      addSystemMessage('O anfitrião se desconectou. ' + successorName
+        + ' assumiu a sala; o tabuleiro e o placar foram mantidos.', { announce: true });
+    }
     updateOnlineStatus();
   }
   if (newlyJoinedMember && isRoomOwner) announcePlayerJoined(newlyJoinedMember);
 
   const ownPresence = ownMember;
   if (ownPresence && (ownPresence.hostId !== onlineHostId
-    || ownPresence.hostEpoch !== onlineHostEpoch || ownPresence.symbol !== onlineSymbol)) {
+    || ownPresence.hostEpoch !== onlineHostEpoch || ownPresence.symbol !== onlineSymbol
+    || ownPresence.role !== onlineRole)) {
+    void trackRoomPresence();
+  } else if (ownPresence && !ownPresence.role && onlineRole) {
     void trackRoomPresence();
   }
 
@@ -1362,6 +1645,7 @@ async function closeOnlineRoom(clearUrl = true) {
   onlineHostEpoch = 0;
   onlineJoinedAt = 0;
   onlineSymbol = '';
+  onlineRole = '';
   onlinePlayerCount = 0;
   onlineConnected = false;
   onlineSpectator = false;
@@ -1371,12 +1655,20 @@ async function closeOnlineRoom(clearUrl = true) {
   moveHistory = [];
   roundRecorded = false;
   chatMessages = [];
+  pendingSwapRequest = null;
+  incomingSwapRequest = null;
+  completedSwapRequestIds.clear();
+  window.clearTimeout(swapRequestTimeout);
+  window.clearTimeout(incomingSwapTimeout);
   previousPresenceMembers = new Map();
   hasSyncedRoomPresence = false;
   window.clearTimeout(joinAlertTimeout);
   roomShare.hidden = true;
   chatPanel.hidden = true;
   onlinePlayersPanel.hidden = true;
+  roomSpectators.hidden = true;
+  swapStatus.hidden = true;
+  swapInvitationPanel.hidden = true;
   playerJoinAlert.hidden = true;
   leaveRoomButton.hidden = true;
   if (clearUrl) updateRoomUrl('', '');
@@ -1396,6 +1688,7 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
   onlineHostEpoch = 0;
   onlineJoinedAt = Date.now();
   onlineSymbol = isCreator ? 'X' : '';
+  onlineRole = isCreator ? 'player' : '';
   onlinePlayerCount = 0;
   onlineConnected = false;
   onlineSpectator = false;
@@ -1418,6 +1711,8 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
     chatMessages = [];
   } else {
     restoreOnlineSnapshot();
+    onlineSymbol = '';
+    onlineRole = '';
   }
   updateCellButtons();
   renderBoard();
@@ -1438,6 +1733,9 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
       .on('broadcast', { event: 'game-state' }, ({ payload }) => receiveOnlineState(payload))
       .on('broadcast', { event: 'chat-message' }, ({ payload }) => receiveChatMessage(payload))
       .on('broadcast', { event: 'room-notice' }, ({ payload }) => receiveRoomNotice(payload))
+      .on('broadcast', { event: 'swap-request' }, ({ payload }) => receiveSwapRequest(payload))
+      .on('broadcast', { event: 'swap-reject' }, ({ payload }) => receiveSwapReject(payload))
+      .on('broadcast', { event: 'swap-complete' }, ({ payload }) => receiveSwapCompletion(payload))
       .on('broadcast', { event: 'request-state' }, ({ payload }) => {
         if (payload && payload.room === onlineRoomCode && onlinePlayerId === onlineHostId) void sendOnlineState();
       })
@@ -1717,6 +2015,9 @@ updateSetupControls();
 chatForm.addEventListener('submit', (event) => {
   void sendChatMessage(event);
 });
+
+acceptSwapButton.addEventListener('click', () => { void acceptPlayerSwap(); });
+rejectSwapButton.addEventListener('click', () => { void rejectPlayerSwap(); });
 
 createRoomButton.addEventListener('click', () => {
   if (modeSelect.value !== 'online') modeSelect.value = 'online';

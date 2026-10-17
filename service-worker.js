@@ -1,9 +1,9 @@
-const CACHE_NAME = 'tic-tac-toe-v11';
+const CACHE_NAME = 'tic-tac-toe-v12';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=11',
-  './script.js?v=11',
+  './style.css?v=12',
+  './script.js?v=12',
   './supabase-config.js',
   './manifest.json',
   './icon-192.png',

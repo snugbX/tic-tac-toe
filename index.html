@@ -8,7 +8,7 @@
     <title>Jogo da Velha — WebGL 2.0</title>
     <link rel="icon" href="icon-192.png" type="image/png" />
     <link rel="manifest" href="manifest.json" />
-    <link rel="stylesheet" href="style.css?v=11" />
+    <link rel="stylesheet" href="style.css?v=12" />
   </head>
   <body class="dark">
     <main class="app-shell">
@@ -118,6 +118,21 @@
               <span class="room-badge" id="roomBadge"></span>
             </div>
             <div class="player-cards" id="playerCards"></div>
+            <section class="room-spectators" id="roomSpectators" aria-label="Espectadores da sala" hidden>
+              <div class="spectator-heading">
+                <h3>Espectadores</h3>
+                <span class="spectator-count" id="spectatorCount">0</span>
+              </div>
+              <ul class="spectator-list" id="spectatorList"></ul>
+            </section>
+            <p class="swap-status" id="swapStatus" role="status" aria-live="polite" hidden></p>
+            <section class="swap-invitation" id="swapInvitationPanel" aria-label="Solicitação de troca de jogador" hidden>
+              <p id="swapInvitationText"></p>
+              <div class="swap-invitation-actions">
+                <button class="swap-accept-button" id="acceptSwapButton" type="button">Aceitar troca</button>
+                <button class="swap-reject-button" id="rejectSwapButton" type="button">Recusar</button>
+              </div>
+            </section>
             <div class="room-share" id="roomShare" hidden>
               <label for="roomLink">Link para convidar</label>
               <div class="share-row">
@@ -150,7 +165,7 @@
               <input id="chatInput" type="text" maxlength="300" autocomplete="off" placeholder="Escreva uma mensagem…" />
               <button class="chat-send-button" id="sendChatButton" type="submit" aria-label="Enviar mensagem">Enviar</button>
             </form>
-            <p class="chat-hint" id="chatHint">Entre na sala com dois jogadores para conversar.</p>
+            <p class="chat-hint" id="chatHint">Entre em uma sala para conversar.</p>
           </section>
 
           <section class="game-insights" aria-label="Placar e histórico">
@@ -210,6 +225,6 @@
       <footer class="page-footer">Renderizado com WebGL 2.0</footer>
     </main>
     <script src="supabase-config.js" defer></script>
-    <script src="script.js?v=11" defer></script>
+    <script src="script.js?v=12" defer></script>
   </body>
 </html>

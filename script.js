@@ -133,6 +133,7 @@ let onlineHostEpoch = 0;
 let onlineJoinedAt = 0;
 let onlinePlayerId = getOnlinePlayerId();
 let onlineSymbol = '';
+let onlinePreferredSymbol = '';
 let onlineRole = '';
 let onlinePlayerCount = 0;
 let onlineConnected = false;
@@ -1009,6 +1010,9 @@ async function trackRoomPresence() {
     if (!onlineSymbol && ownMember && ownMember.role !== 'spectator' && ownMember.symbol) {
       onlineSymbol = ownMember.symbol;
     }
+    if (!onlineSymbol && onlinePreferredSymbol && !occupiedSymbols.has(onlinePreferredSymbol)) {
+      onlineSymbol = onlinePreferredSymbol;
+    }
     if (!onlineSymbol) {
       onlineSymbol = onlinePlayerId === onlineHostId && !occupiedSymbols.has('X')
         ? 'X'
@@ -1016,8 +1020,19 @@ async function trackRoomPresence() {
           ? oppositeSymbol(owner.symbol)
           : (['X', 'O'].find((symbol) => !occupiedSymbols.has(symbol)) || ''));
     }
-    if (!onlineSymbol) onlineRole = 'spectator';
+    if (!onlineSymbol || occupiedSymbols.has(onlineSymbol)) {
+      onlineRole = 'spectator';
+      onlineSymbol = '';
+    } else {
+      onlinePreferredSymbol = onlineSymbol;
+    }
+  } else if (onlineRole === 'spectator' && onlinePreferredSymbol
+    && !occupiedSymbols.has(onlinePreferredSymbol)) {
+    // Se a presença chegou como espectador durante a reconexão, recupera a vaga antiga.
+    onlineRole = 'player';
+    onlineSymbol = onlinePreferredSymbol;
   }
+  onlineSpectator = onlineRole === 'spectator';
   if (onlineRole === 'spectator') {
     onlineSymbol = '';
   }
@@ -1459,11 +1474,13 @@ async function applySwapCompletion(payload) {
     onlineRole = 'spectator';
     onlineSpectator = true;
     onlineSymbol = '';
+    onlinePreferredSymbol = '';
     clearPendingSwapRequest();
   } else {
     onlineRole = 'player';
     onlineSpectator = false;
     onlineSymbol = payload.symbol;
+    onlinePreferredSymbol = payload.symbol;
     incomingSwapRequest = null;
     window.clearTimeout(incomingSwapTimeout);
   }
@@ -1724,17 +1741,37 @@ function updateOnlinePresence() {
   const ownMember = members.find((member) => member.id === onlinePlayerId);
   if (!onlineRole && ownMember && ownMember.role) onlineRole = ownMember.role;
   else if (!onlineRole && ownMember && ownMember.symbol) onlineRole = 'player';
-  onlineSpectator = onlineRole === 'spectator';
-  const currentOwner = members.find((member) => member.id === onlineHostId);
+  const occupiedSymbols = new Set(members
+    .filter((member) => member.id !== onlinePlayerId && member.role !== 'spectator')
+    .map((member) => member.symbol)
+    .filter((symbol) => symbol === 'X' || symbol === 'O'));
   if (!onlineSymbol && onlineRole === 'player' && ownMember && ownMember.role !== 'spectator'
     && (ownMember.symbol === 'X' || ownMember.symbol === 'O')) {
     onlineSymbol = ownMember.symbol;
-  } else if (onlineSpectator) {
+  }
+  if (onlineRole === 'spectator' && onlinePreferredSymbol
+    && !occupiedSymbols.has(onlinePreferredSymbol)) {
+    onlineRole = 'player';
+    onlineSymbol = onlinePreferredSymbol;
+  } else if (onlineRole === 'player' && !onlineSymbol && onlinePreferredSymbol
+    && !occupiedSymbols.has(onlinePreferredSymbol)) {
+    onlineSymbol = onlinePreferredSymbol;
+  }
+  if (onlineRole === 'player' && onlineSymbol && occupiedSymbols.has(onlineSymbol)) {
+    onlineRole = 'spectator';
+    onlineSymbol = '';
+  }
+  onlineSpectator = onlineRole === 'spectator';
+  const currentOwner = members.find((member) => member.id === onlineHostId);
+  if (onlineSpectator) {
     onlineSymbol = '';
   } else if (!onlineSymbol && onlinePlayerId === onlineHostId) {
     onlineSymbol = 'X';
   } else if (!onlineSymbol && currentOwner && currentOwner.role !== 'spectator' && currentOwner.symbol) {
     onlineSymbol = oppositeSymbol(currentOwner.symbol);
+  }
+  if (onlineRole === 'player' && (onlineSymbol === 'X' || onlineSymbol === 'O')) {
+    onlinePreferredSymbol = onlineSymbol;
   }
 
   if (activeChallenge && (!memberIds.includes(activeChallenge.challengerId)
@@ -1799,6 +1836,9 @@ function updateOnlinePresence() {
     void trackRoomPresence();
   }
 
+  // Keep the seat preference on this device so a returning player can reclaim it.
+  saveOnlineSnapshot();
+
   if (onlineSpectator) {
     void updateLobbyPresence('', 'idle');
   } else if (isRoomOwner) {
@@ -1837,6 +1877,7 @@ function getOnlineSnapshot() {
     bonusTurnFor: onlineBonusTurnFor,
     lastChallengeResult,
     symbol: onlineSymbol,
+    preferredSymbol: onlinePreferredSymbol || (onlineRole === 'player' ? onlineSymbol : ''),
     hostEpoch: onlineHostEpoch,
     chatMessages: [...chatMessages]
   };
@@ -1884,7 +1925,10 @@ function restoreOnlineSnapshot() {
     activeChallenge = normalizeActiveChallenge(saved.activeChallenge);
     onlineBonusTurnFor = ['X', 'O'].includes(saved.bonusTurnFor) ? saved.bonusTurnFor : '';
     lastChallengeResult = String(saved.lastChallengeResult || '').slice(0, 240);
-    onlineSymbol = saved.symbol === 'X' || saved.symbol === 'O' ? saved.symbol : onlineSymbol;
+    onlineSymbol = saved.symbol === 'X' || saved.symbol === 'O' ? saved.symbol : '';
+    onlinePreferredSymbol = ['X', 'O'].includes(saved.preferredSymbol)
+      ? saved.preferredSymbol
+      : (saved.symbol === 'X' || saved.symbol === 'O' ? saved.symbol : '');
     onlineHostEpoch = Math.max(0, Number(saved.hostEpoch) || 0);
     chatMessages = [];
     mergeChatMessages(saved.chatMessages);
@@ -1979,6 +2023,7 @@ async function closeOnlineRoom(clearUrl = true) {
   onlineHostEpoch = 0;
   onlineJoinedAt = 0;
   onlineSymbol = '';
+  onlinePreferredSymbol = '';
   onlineRole = '';
   onlinePlayerCount = 0;
   onlineConnected = false;
@@ -2031,6 +2076,7 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
   onlineHostEpoch = 0;
   onlineJoinedAt = Date.now();
   onlineSymbol = isCreator ? 'X' : '';
+  onlinePreferredSymbol = isCreator ? 'X' : '';
   onlineRole = isCreator ? 'player' : '';
   roomChallengeEnabled = false;
   challengeNextStarter = '';
@@ -2064,8 +2110,7 @@ async function connectToOnlineRoom(roomCode, hostId = '', isCreator = false) {
     chatMessages = [];
   } else {
     restoreOnlineSnapshot();
-    onlineSymbol = '';
-    onlineRole = '';
+    onlineRole = onlinePreferredSymbol ? 'player' : '';
   }
   updateCellButtons();
   renderBoard();
